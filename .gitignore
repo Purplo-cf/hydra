@@ -1,0 +1,5 @@
+# Hydra local outputs.
+output/*
+
+# Hydra pycache.
+hydra/__pycache__

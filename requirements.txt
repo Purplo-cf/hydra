@@ -1,0 +1,2 @@
+git+https://github.com/DragonDelgar/mido.git#egg=mido
+packaging==24.2
