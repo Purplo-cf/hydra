@@ -3,6 +3,9 @@ import sys
 import hydra.hypath as hypath
 
 if __name__ == "__main__":
+    
+    os.makedirs("../output", exist_ok=True)
+    
     with open("../output/filldata_valid.txt", mode='w', encoding='utf-8') as valid_file:
         with open("../output/filldata_invalid.txt", mode='w', encoding='utf-8') as invalid_file:
             with open("../output/hydra_output.txt", mode='w', encoding='utf-8') as output:
