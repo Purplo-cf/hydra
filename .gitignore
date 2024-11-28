@@ -3,3 +3,6 @@ output/*
 
 # Hydra pycache.
 hydra/__pycache__
+
+# Tests pycache.
+test/__pycache__

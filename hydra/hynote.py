@@ -90,6 +90,21 @@ class ChordNote(Enum):
                 return ChordNote.GHOST
             case ChordNote.CYMBAL_ACCENT:
                 return ChordNote.ACCENT
+                
+    def json_value(self):
+        match self:
+            case ChordNote.NORMAL:
+                return "normal"
+            case ChordNote.GHOST:
+                return "ghost"
+            case ChordNote.ACCENT:
+                return "accent"
+            case ChordNote.CYMBAL:
+                return "cymbal"
+            case ChordNote.CYMBAL_GHOST:
+                return "cymbal ghost"
+            case ChordNote.CYMBAL_ACCENT:
+                return "cymbal accent"
     
 # Class for a group of notes that happen simultaneously.
 class Chord:
