@@ -2,6 +2,7 @@ import os
 import json
 from . import hypath
 
+# to do: look for nearby song info and pull metadata 
 def discover_charts(root, map_names=True):
     charts = []
     
@@ -35,3 +36,16 @@ def load_records(filepath, map_names=True):
     
     unique_ids = set([r.songid for r in records])
     return {id: set([r for r in records if r.songid == id]) for id in unique_ids}
+    
+def run_chart(filepath):
+    if filepath.endswith(".mid"):
+        song = hypath.MidiParser().parsefile(filepath)
+    elif filepath.endswith(".chart"):
+        song = hypath.ChartParser().parsefile(filepath)
+    else:
+        raise IOError("Unexpected chart filetype")
+    
+    optimizer = hypath.Optimizer()
+    optimizer.run(song)
+    
+    return hypath.HydraRecord.from_hydra(song, optimizer)
