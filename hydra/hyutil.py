@@ -1,6 +1,8 @@
 import os
 import json
 from . import hypath
+from . import hyrecord
+from . import hysong
 
 class ChartFileError(Exception):
     pass
@@ -32,7 +34,7 @@ def load_records(filepath, map_names=True):
     
     with open(filepath, mode='r', encoding='utf-8') as recordfile:
         album = json.load(recordfile)
-        records = [hypath.HydraRecord.from_dict(r_raw) for r_raw in album["records"]]
+        records = [hyrecord.HydraRecord.from_dict(r_raw) for r_raw in album["records"]]
             
     if not map_names:
         return records
@@ -42,13 +44,13 @@ def load_records(filepath, map_names=True):
     
 def run_chart(filepath):
     if filepath.endswith(".mid"):
-        song = hypath.MidiParser().parsefile(filepath)
+        song = hysong.MidiParser().parsefile(filepath)
     elif filepath.endswith(".chart"):
-        song = hypath.ChartParser().parsefile(filepath)
+        song = hysong.ChartParser().parsefile(filepath)
     else:
         raise ChartFileError("Unexpected chart filetype")
     
     optimizer = hypath.Optimizer()
     optimizer.run(song)
     
-    return hypath.HydraRecord.from_hydra(song, optimizer)
+    return hyrecord.HydraRecord.from_hydra(song, optimizer)

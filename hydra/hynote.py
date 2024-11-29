@@ -1,18 +1,5 @@
 from enum import Enum
-from . import hylog
 
-# Utility for getting the combo-based score multiplier.
-# To do: Make a wrapper class for the combo number, and then simplify things using combo.multiplier
-def to_multiplier(combo):
-    if combo < 10:
-        return 1
-    elif combo < 20:
-        return 2
-    elif combo < 30:
-        return 3
-    else:
-        return 4
-        
 class ChordNote(Enum):
     NORMAL = 1
     GHOST = 2
@@ -225,48 +212,7 @@ class Chord:
         
     def basescore(self):
         return sum(self.point_spread())
-        
-    def comboscore(self, combo, reverse=False, no_dynamics=False):
-        mx_thresholds = [10,20,30]
-        multiplier = to_multiplier(combo)
-        chord_points = 0
-        for note_points in self.point_spread(reverse, no_dynamics):
-            combo += 1
-            if combo in mx_thresholds:
-                multiplier += 1
-        
-            chord_points += note_points * multiplier
-            
-        return chord_points
-        
-    # The multiplier squeeze given the combo going into the chord, or None if no multiplier squeeze is possible.
-    def get_multiplier_squeeze(self, combo, sp_active):
-        best_points = self.comboscore(combo)
-        worst_points = self.comboscore(combo, reverse=True)
-        
-        if sp_active:
-            best_points *= 2
-            worst_points *= 2
-        
-        if best_points != worst_points:
-            squeeze_count = (combo + self.count()) % 10 + 1
-            return hylog.MultiplierSqueeze(self, to_multiplier(combo), squeeze_count, best_points - worst_points)
-            
-        return None
-        
     
     def get_activation_note_basescore(self):
         return (self.Green or self.Blue or self.Yellow or self.Red or self.Kick or self.Kick2x).basescore()
     
-    def get_activation_squeeze(self, combo):
-        # best points: entire chord is under sp
-        best_points = self.comboscore(combo) * 2
-        
-        # worst points: only activation note is under sp; 2x it by adding it again
-        worst_points = self.comboscore(combo) + self.get_activation_note_basescore()*to_multiplier(combo + self.count())
-        
-        if best_points != worst_points:
-            return hylog.ActivationSqueeze(self, best_points - worst_points)
-        
-        return None
-        
