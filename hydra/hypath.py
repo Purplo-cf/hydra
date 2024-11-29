@@ -9,40 +9,10 @@ import json
 from . import hynote
 from . import hylog
 
-# base note: 50
-# cymbal: 65
-# dynamic: 2x
-
-# solo bonus: +100 per solo note
-
-# The lengths of activation fills are just visual and only the activation chord needs to be considered.
-# Activation notes are autoplayed; skipping activations does not affect base score / combo.
-
-# Multiplier squeeze: In a chord that straddles a multiplier, hit lower-value notes first.
-#   Also known as squeezing cymbals or dynamics.
-# Activation squeeze: In a chord with an activation note, hit the activation note first.
-#   Also known as a frontend squeeze.
-#   Can happen at the same time as multiplier squeezes, but not only is it rare, it's also safe to assume the activation squeeze takes priority.
-# Backend squeeze: For a chord that happens exactly when active SP ends, hit early to fit the chord in SP.
-# Path squeeze in: For an SP phrase that completes exactly when active SP ends, hit early to extend SP.
-# Path squeeze out: For an SP phrase that completes exactly when active SP ends, hit late to avoid extending SP.
-#   Reduces the effectiveness of backend squeezes by 1 note.
-
-# SP modifier: 116
-# Fill modifier: 120-124
-# Solo modifier: 103
-
 # To do: A better name that reflects that *this* is the part that is simulating score gains and SP behavior.
 class Path:
-    # Once 50% sp is gained, since upcoming notes are already on screen, a fill has to start after this lockout in order to appear.
-    fill_lockout_seconds = 1.8
-    
-    # For a fill to appear, there needs to be this many measures between gaining 50% SP and the start of the fill.
-    fill_lockout_measures = 1.0
     
     uid = 1
-    
-    # Fills close to the window might be able to be influenced by early/late hits?
     
     def __init__(self):
     
@@ -59,10 +29,7 @@ class Path:
         # Skips/activations update these
         self.current_skips = 0
         self.skipped_quantum_fill = None
-        self.activation_records = []
-        
-        # Details about every single fill the path encountered.
-        self.fill_records = []
+        self.activations = []
         
         self.multiplier_squeezes = []
         self.activation_squeezes = []
@@ -89,11 +56,10 @@ class Path:
         self.sp_ready_beat_latehit = None
         
         self.combo = 0
-        
-        self.chord_log = []
+
         
     def __str__(self):
-        return f"Path {self.debug_id}, {[a.skips for a in self.activation_records]} + {self.current_skips}, {self.get_best_total_score()}, SP={self.sp_meter}, active SP={self.sp_active}"
+        return f"Path {self.debug_id}, {[a.skips for a in self.activations]} + {self.current_skips}, {self.get_best_total_score()}, SP={self.sp_meter}, active SP={self.sp_active}"
         
     # A path is strictly better if it has a better score and equal or more star power while in the same star power state and same timestamp.
     # This function returns True (self is better), False (other is better), or None (inconclusive).
@@ -104,42 +70,10 @@ class Path:
         return self.get_best_total_score() > other.get_best_total_score() and (final or self.sp_meter >= other.sp_meter)
             
     def quick_match(self, skips):
-        return len(skips) == len(self.activation_records) and all([self.activation_records[i].skips == skips[i] for i in range(len(skips))])
+        return len(skips) == len(self.activations) and all([self.activations[i].skips == skips[i] for i in range(len(skips))])
         
-    def report(self, output):
-        
-        #for l in self.chord_log:
-        #   l.report(output)
-        
-        #for f in self.fill_records:
-        #    f.report(output)
-        
-        output.write("\t\tActivations:\n")
-        if len(self.activation_records) == 0:
-            output.write("\t\t\tNone\n")
-        
-        for r in self.activation_records:
-            r.report(output)
-        
-        output.write("\t\tMultiplier squeezes:\n")
-        if len(self.multiplier_squeezes) == 0:
-            output.write("\t\t\tNone\n")
-        
-        for ms in self.multiplier_squeezes:
-            ms.report(output)
-        
-        output.write("\n\t\tSummary:\n")
-        output.write(f"\n\t\t\tBase score: {self.basescore}\n")
-        output.write(f"\t\t\tSolo bonus: {self.solobonus}\n")
-        output.write(f"\t\t\tStar power: +{self.spscore}\n")
-        
-        output.write(f"\n\t\t\tDynamics: +{self.basedynamics}\n")
-        output.write(f"\t\t\tMultiplier squeezes: +{sum([s.extrascore for s in self.multiplier_squeezes])}\n")
-        output.write(f"\t\t\tActivation squeezes: +{sum([s.extrascore for s in self.activation_squeezes])}\n")
-        output.write(f"\t\t\tBackend squeezes: +{sum([s.extrascore for s in self.backend_squeezes])}\n")
-        
-        output.write(f"\n\t\t\tMinimum score:{' '*(10 - len(str(self.get_worst_total_score())))}{self.get_worst_total_score()}\n")
-        output.write(f"\t\t\tPerfect score:{' '*(10 - len(str(self.get_best_total_score())))}{self.get_best_total_score()}\n")
+
+      
     
     
     def get_best_total_score(self):
@@ -154,7 +88,6 @@ class Path:
         
         timestamp_is_sp_border = False
         
-        chord_log_features = []
                 
         # spend sp
         if self.sp_active:
@@ -166,7 +99,6 @@ class Path:
                 self.sp_active = False
                 timestamp_is_sp_border = True
                 
-            chord_log_features.append(f"active sp = {self.sp_meter}")
                 
         new_paths = []
         
@@ -177,7 +109,6 @@ class Path:
         if multiplier_squeeze != None and not timestamp.flag_activation:
             # If a chord is both a multiplier squeeze and an activation squeeze (not likely), just treat it as an activation squeeze
             self.multiplier_squeezes.append(multiplier_squeeze)
-            chord_log_features.append("multiplier squeeze")
         
         # Add score for this timestamp
         chordscore_no_dynamics = timestamp.chord.comboscore(self.combo, reverse=True, no_dynamics=True)
@@ -193,59 +124,24 @@ class Path:
         if timestamp_is_sp_border:
             # Backend squeeze: Ranges from whole chord not in sp (this score has already been applied) to fully in sp.
             backend_squeeze = hylog.BackendSqueeze(chordscore)
-            self.activation_records[-1].backend_squeeze = backend_squeeze
+            self.activations[-1].backend_squeeze = backend_squeeze
             self.backend_squeezes.append(backend_squeeze)
-            chord_log_features.append("sp - backend squeeze")
         elif self.sp_active:
             # Regular sp chord
             self.spscore += chordscore
-            chord_log_features.append("sp")
         
         
         
         if timestamp.flag_activation:
             assert(timestamp.activation_fill_length_seconds != None)
             
-            # 3 possible outcomes for a fill:
-            # - Skip (fill appears and is not taken)
-            # - Take (fill appears and is activated)
-            # - Ignore (fill doesn't appear at all and doesn't count towards the path's skips)
-            # For some fills, player late/early input can change a fill from Skip/Take to Ignore and vice versa.
-            # So really we can count up the possible bifurcations for every fill when sp is ready:
-            # Fills that normally appear:
-            # - Normally appears, and is skipped
-            # - Normally appears, and is taken
-            # - Forced to not appear
-            #       Doesn't need to be considered: because of equal scoring, is redundant with "normally appears and is skipped"
-            # Fills that normally don't appear:
-            # - Normally doesn't appear
-            #       Has no impact on the path.
-            # - Forced to appear, and is skipped
-            #       Doesn't need to be considered: because of equal scoring, is redundant with "normally doesn't appear"
-            # - Forced to appear, and is taken
-            #       This is the special case where an early activation is available with special input timing.
-            
-            
-            
-            self.fill_records.append(hylog.FillRecord(timestamp.measure, self.sp_active, self.sp_meter))
-            
-            if self.sp_active:
-                self.fill_records[-1].result = "Non-appearing (SP already active)"
-            elif self.sp_meter < 0.5:
-                self.fill_records[-1].result = "Non-appearing (not enough SP)"
-            
-            
             # First condition for activations: not already in star power and has enough star power
             if not self.sp_active and self.sp_meter >= 0.5:
-                
-                self.fill_records[-1].sp_age_time = timestamp.time - timestamp.activation_fill_length_seconds - self.sp_ready_time
-                self.fill_records[-1].sp_age_measures = timestamp.activation_fill_start_measure - self.sp_ready_measure
             
                 # Even if SP is ready to activate, it has to be ready for a certain length of time before fills start to appear.
                 # This time (in beats) is measured in realtime, so it's influenced by calibration and player timing.
                 
                 threshold_difference_beats = timestamp.activation_fill_start_beat - self.sp_ready_beat - 4.0
-                self.fill_records[-1].threshold_beats = threshold_difference_beats
                 
                 if threshold_difference_beats >= 0:
                     threshold_offset_ms = threshold_difference_beats / (self.sp_ready_beat_latehit - self.sp_ready_beat) * 70
@@ -272,30 +168,23 @@ class Path:
                     skip_option = copy.deepcopy(self)
                     skip_option.debug_id = Path.uid
                     Path.uid += 1
-                    skip_log_features = copy.deepcopy(chord_log_features)
-                    skip_log_features.append("Skipped fill")
                     skip_option.current_skips += 1
-                    skip_option.chord_log.append(hylog.ChordLogEntry(timestamp.chord, skip_log_features, timestamp.measure))
                     if is_timing_sensitive:
                         # Whenever the next activation is logged, we'll note that the first skip was timing sensitive.
-                        skip_option.skipped_quantum_fill = hylog.QuantumFill(0, threshold_offset_ms) # Skipped but may not appear
-                        skip_log_features.append("Timing sensitive")
-                    skip_option.fill_records[-1].result = "Skipped"
+                        skip_option.skipped_quantum_fill = hylog.CalibrationFill(0, threshold_offset_ms) # Skipped but may not appear
                     new_paths.append(skip_option)
                 
                     #print(f"\tActivating.")
                     # The fill can appear either normally or with early timing, so it's activatable.
                     self.sp_active = True
                     
-                    chord_log_features.append("activation")
-                    self.activation_records.append(hylog.ActivationRecord(timestamp.chord, self.current_skips, self.sp_meter, timestamp.measure))
+                    self.activations.append(hylog.Activation(timestamp.chord, self.current_skips, self.sp_meter, timestamp.measure))
                     if self.skipped_quantum_fill != None:
                         self.skipped_quantum_fill.skips_with_fill += self.current_skips
-                        self.activation_records[-1].quantum_fill = self.skipped_quantum_fill
+                        self.activations[-1].quantum_fill = self.skipped_quantum_fill
                         self.skipped_quantum_fill = None
                     elif is_timing_sensitive:
-                        chord_log_features.append("Timing sensitive")
-                        self.activation_records[-1].quantum_fill = hylog.QuantumFill(0, threshold_offset_ms) # Activated but may not appear
+                        self.activations[-1].quantum_fill = hylog.CalibrationFill(0, threshold_offset_ms) # Activated but may not appear
                     self.sp_ready_time = None
                     self.sp_ready_measure = None
                     self.sp_ready_measure_earlyhit = None
@@ -304,7 +193,6 @@ class Path:
                     self.sp_ready_beat_earlyhit = None
                     self.sp_ready_beat_latehit = None
                     self.current_skips = 0
-                    self.fill_records[-1].result = "Activated"
                     # The activation chord was already scored, but 1 or more notes are actually under the sp that just activated.
                     # Add the bare minimum (the activation note) to non-squeeze scoring.
                     self.spscore += timestamp.chord.get_activation_note_basescore()*hynote.to_multiplier(self.combo)
@@ -312,10 +200,7 @@ class Path:
                     activation_squeeze = timestamp.chord.get_activation_squeeze(self.combo)
                     if activation_squeeze != None:
                         self.activation_squeezes.append(activation_squeeze)
-                        self.activation_records[-1].activation_squeeze = activation_squeeze
-                        chord_log_features.append("sp - activation squeeze")
-                    else:
-                        chord_log_features.append("sp")
+                        self.activations[-1].activation_squeeze = activation_squeeze
                 
                 
                 elif threshold_offset_ms > -offset_limit:
@@ -325,11 +210,9 @@ class Path:
                     forced_early_option = copy.deepcopy(self)
                     forced_early_option.debug_id = Path.uid
                     Path.uid += 1
-                    forced_early_log_features = copy.deepcopy(chord_log_features)
-                    forced_early_log_features.append("Forced early activation")
                     forced_early_option.sp_active = True
-                    forced_early_option.activation_records.append(hylog.ActivationRecord(timestamp.chord, forced_early_option.current_skips, forced_early_option.sp_meter, timestamp.measure))
-                    forced_early_option.activation_records[-1].quantum_fill = hylog.QuantumFill(0, threshold_offset_ms) # Activated, forced to appear
+                    forced_early_option.activations.append(hylog.Activation(timestamp.chord, forced_early_option.current_skips, forced_early_option.sp_meter, timestamp.measure))
+                    forced_early_option.activations[-1].quantum_fill = hylog.CalibrationFill(0, threshold_offset_ms) # Activated, forced to appear
                     forced_early_option.sp_ready_time = None
                     forced_early_option.sp_ready_measure = None
                     forced_early_option.sp_ready_measure_earlyhit = None
@@ -338,7 +221,6 @@ class Path:
                     forced_early_option.sp_ready_beat_earlyhit = None
                     forced_early_option.sp_ready_beat_latehit = None
                     forced_early_option.current_skips = 0
-                    forced_early_option.fill_records[-1].result = "Activated (forced to appear)"
                     
                     # The activation chord was already scored, but 1 or more notes are actually under the sp that just activated.
                     # Add the bare minimum (the activation note) to non-squeeze scoring.
@@ -347,47 +229,31 @@ class Path:
                     activation_squeeze = timestamp.chord.get_activation_squeeze(forced_early_option.combo)
                     if activation_squeeze != None:
                         forced_early_option.activation_squeezes.append(activation_squeeze)
-                        forced_early_option.activation_records[-1].activation_squeeze = activation_squeeze
-                        forced_early_log_features.append("sp - activation squeeze")
-                    else:
-                        forced_early_log_features.append("sp")
-                
-                    forced_early_log_features.append(f"{chordscore}")
-                    forced_early_option.chord_log.append(hylog.ChordLogEntry(timestamp.chord, forced_early_log_features, timestamp.measure))
+                        forced_early_option.activations[-1].activation_squeeze = activation_squeeze
                     
                     forced_early_option.latest_timestamp_time = timestamp.time
                     forced_early_option.latest_timestamp_measure = timestamp.measure
                     new_paths.append(forced_early_option)
-                    self.fill_records[-1].result = "Non-appearing (too soon after getting SP)"
-                    self.skipped_quantum_fill = hylog.QuantumFill(1, threshold_offset_ms) # Doesn't appear but may appear and be skipped
-                else:
-                    self.fill_records[-1].result = "Non-appearing (too soon after getting SP)"
+                    self.skipped_quantum_fill = hylog.CalibrationFill(1, threshold_offset_ms) # Doesn't appear but may appear and be skipped
+
                     
         if timestamp.flag_sp:
             
             if timestamp_is_sp_border:
                 # this path will be an sp extension; spawn a new path where the sp expires.
                 sq_out = copy.deepcopy(self)
-                sq_out_log_features = copy.deepcopy(chord_log_features)
-                sq_out_log_features.append("sq-out +25% sp")
-                sq_out.chord_log.append(hylog.ChordLogEntry(timestamp.chord, sq_out_log_features,timestamp.measure))
                 sq_out.sp_meter = 0.25
                 # there was a brand-new backend squeeze; reduce it by the minimum 1 note that must be left out of sp
                 sq_out.backend_squeezes[-1].extrascore -= timestamp.chord.point_spread()[0]*hynote.to_multiplier(self.combo)
-                sq_out.activation_records[-1].phrase_squeeze = "Out"
+                sq_out.activations[-1].phrase_squeeze = "Out"
                 new_paths.append(sq_out)
 
-                chord_log_features.append("sq-in sp extension")
-                self.activation_records[-1].phrase_squeeze = "In"
+                self.activations[-1].phrase_squeeze = "In"
                 # reactivate 
                 self.sp_active = True
                 self.sp_meter = 0.25
             else:
                 # add sp
-                if self.sp_active:
-                    chord_log_features.append("sp extension")
-                
-                chord_log_features.append("+25% sp")
                 self.sp_meter = min(self.sp_meter + 0.25, 1.0)
             
                 if self.sp_meter == 0.5 and not self.sp_active:
@@ -401,10 +267,7 @@ class Path:
                     self.sp_ready_beat_latehit = timestamp.beat_latehit
         
         if timestamp.flag_solo:
-            chord_log_features.append("solo")
             self.solobonus += 100 * timestamp.chord.count()
-        chord_log_features.append(f"{chordscore}")
-        self.chord_log.append(hylog.ChordLogEntry(timestamp.chord, chord_log_features, timestamp.measure))
         
         self.latest_timestamp_time = timestamp.time
         self.latest_timestamp_measure = timestamp.measure
@@ -440,44 +303,15 @@ class Optimizer:
         for timestamp in song.sequence:
             self.read_timestamp(timestamp)
         self.remove_strictly_worse_paths(final=True)
-        
-    # Print results.
-    def report(self, output):
-        path_ranking = sorted(self.paths, key=lambda p: -p.get_best_total_score())
-        best_score = path_ranking[0].get_best_total_score()
 
-        best_paths = [p for p in self.paths if p.get_best_total_score() == best_score]
-        
-        for i,p in enumerate(best_paths):
-            output.write(f'\n\tOptimal path {i+1}:\n')
-            p.report(output)
-
-    def report_fills(self, name, valid_file, invalid_file):
-        path_ranking = sorted(self.paths, key=lambda p: -p.get_best_total_score())
-        best_score = path_ranking[0].get_best_total_score()
-
-        best_path = [p for p in self.paths if p.get_best_total_score() == best_score][0]
-        
-        for f in best_path.fill_records:
-            if f.sp_age_time != None and f.sp_age_measures != None:
-                rowstr = f"{name};{f.measure};{f.sp_age_time};{f.sp_age_measures};{f.result}"
-                if f.result.startswith("Non-appearing"):
-                    invalid_file.write(f"{rowstr}\n")
-                else:
-                    valid_file.write(f"{rowstr}\n")
-        
     def read_timestamp(self, timestamp):
-        
-        # to do: paths need to know if a chord is in sp and if a chord is on an sp border
         new_paths = []
-        #print(f"----------")
+
         for p in self.paths:
-            #print(f"{p.debug_id}:\t{[a.skips for a in p.activation_records]} + {p.current_skips}")
             bifurcations = p.push_timestamp(timestamp)
             new_paths += bifurcations
             
         self.paths += new_paths
-        
         self.remove_strictly_worse_paths()
 
 
@@ -530,18 +364,6 @@ class Song:
         
         self.generated_fills = False
     
-    def report(self, output):
-        
-        
-        if self.generated_fills:
-            output.write(f"\n\t**Warning: This chart uses auto-generated fills, please double check correctness.\n")
-
-        
-        output.write(f"\n\tNotes: {self.note_count}\n")
-
-        if self.solo_note_count > 0:
-            output.write(f"\n\tSolo bonus: {100 * self.solo_note_count}\n")
-            
     # If a chart has no drum fills, add them at measure 3 + 4n, half a measure long, if there's a chord there.
     # To do: The details of this rule need to be explored
     def check_activations(self):
@@ -769,14 +591,6 @@ class ChartSection:
     def __init__(self):
         self.name = None
         self.data = {}
-        
-    def report(self):
-        print(self.name)
-        print("{")
-        for k in self.data:
-            print(f"\t{k} = {self.data[k]}")
-        print("}")
-
 
 class ChartDataEntry:
     
@@ -1008,9 +822,6 @@ class ChartParser:
         with open(filename, mode='r') as charttxt:
             self.load_sections(charttxt)
             
-        #for s in self.sections.values():
-        #    s.report()
-            
         self.resolution = int(self.sections["Song"].data["Resolution"][0].property)
         
         solo_on = False
@@ -1235,7 +1046,7 @@ class HydraRecord():
         for p in optimizer.paths:
             path = HydraRecordPath()
         
-            for a in p.activation_records:
+            for a in p.activations:
                 activation = HydraRecordActivation()
                 
                 activation.skips = a.skips
@@ -1325,9 +1136,7 @@ class HydraRecord():
         ghosts = self.score_ghosts
         
         return notes + combo_bonus + starpower + solobonus + accents + ghosts
-        # self.basescore + self.solobonus + self.basedynamics + self.spscore
-        #    + sum([s.extrascore for s in self.multiplier_squeezes]) + sum([s.extrascore for s in self.activation_squeezes]) 
-        #    + sum([s.extrascore for s in self.backend_squeezes]) 
+
 class HydraRecordSolo():
     
     def __init__(self):
