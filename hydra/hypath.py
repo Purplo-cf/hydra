@@ -1210,14 +1210,3 @@ class HydraRecordChord():
         
         return HydraRecordChord(k, r, y, b, g)
         
-class ChartFileError(Exception):
-    pass
-
-# Determines which parser to use and returns a Song
-def parsefile(filepath):
-    if filepath.endswith(".mid"):
-        return MidiParser().parsefile(filepath)
-    elif filepath.endswith(".chart"):
-        return ChartParser().parsefile(filepath)
-    else:
-        raise ChartFileError()

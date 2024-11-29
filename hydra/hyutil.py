@@ -2,6 +2,9 @@ import os
 import json
 from . import hypath
 
+class ChartFileError(Exception):
+    pass
+    
 # to do: look for nearby song info and pull metadata 
 def discover_charts(root, map_names=True):
     charts = []
@@ -43,7 +46,7 @@ def run_chart(filepath):
     elif filepath.endswith(".chart"):
         song = hypath.ChartParser().parsefile(filepath)
     else:
-        raise IOError("Unexpected chart filetype")
+        raise ChartFileError("Unexpected chart filetype")
     
     optimizer = hypath.Optimizer()
     optimizer.run(song)

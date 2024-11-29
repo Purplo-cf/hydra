@@ -21,13 +21,6 @@ class TestIB24Dataset(unittest.TestCase):
         except KeyError:
             self.skipTest(f"{name} not found in solutions.")
     
-    def run_chart(self, chartpath):
-        song = hypath.parsefile(chartpath)
-        optimizer = hypath.Optimizer()
-        
-        optimizer.run(song)
-        return hypath.HydraRecord.from_hydra(song, optimizer)
-    
     def setUp(self):
         # Get the IB24 charts
         self.chartnames_to_paths = hyutil.discover_charts(os.sep.join(["..","_charts","IB24"]))        
@@ -39,7 +32,7 @@ class TestIB24Dataset(unittest.TestCase):
         chartpath = self.get_testchart_or_skip(name)
         soln = self.get_testsolution_or_skip(name)
         
-        record = self.run_chart(chartpath)
+        record = hyutil.run_chart(chartpath)
         
         self.assertEqual(record.notecount, soln.notecount)
         self.assertEqual(record.optimal(), soln.optimal())
