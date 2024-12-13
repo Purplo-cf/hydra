@@ -13,17 +13,17 @@ if __name__ == "__main__":
         json_album = {'records': []}
         
         charts_root = sys.argv[1]
-        names_to_chartfiles = hyutil.discover_charts(charts_root)
+        charts = hyutil.discover_charts(charts_root, map_names=False)
         
-        print(f"\nFound {len(names_to_chartfiles)} charts in root folder '{charts_root}'.\n")
+        print(f"\nFound {len(charts)} charts in root folder '{charts_root}'.\n")
         
-        for name, chartfile in names_to_chartfiles.items():
-            print(f"{chartfile}")
+        for chart in charts:
+            print(f"{chart}")
             
-            json_album['records'].append(hyutil.run_chart(chartfile))
+            json_album['records'].append(hyutil.run_chart(chart))
             
             # Temp
-            json_album['records'][-1].songid = name
+            json_album['records'][-1].songid = chart
                         
         json.dump(json_album, output_json, default=lambda o: o.__dict__, indent=4)
         

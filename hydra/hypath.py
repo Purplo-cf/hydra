@@ -418,14 +418,14 @@ class GraphPather:
             
         self.paths.sort(key=lambda p: p.record.optimal(), reverse=True)
         
-        print(f"\nFound {len(self.paths)} paths.\n")
-        for act in self.paths[0].record.activations:
-            print(act)
-            print(f"\tBackends:")
-            if len(act.backends) == 0:
-                print("\t\tNone")
-            for be in act.backends:
-                print(f'\t\t({be.timecode.measurestr()}, {be.chord}, {be.offset_ms}ms)')
+        # print(f"\nFound {len(self.paths)} paths.\n")
+        # for act in self.paths[0].record.activations:
+            # print(act)
+            # print(f"\tBackends:")
+            # if len(act.backends) == 0:
+                # print("\t\tNone")
+            # for be in act.backends:
+                # print(f'\t\t({be.timecode.measurestr()}, {be.chord}, {be.offset_ms}ms)')
         
             
 class GraphPath:
@@ -603,7 +603,14 @@ class GraphPath:
                     if be.timecode == br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
                         new_path.record.score_sp += be.sqout_points
             else:
-                # Typical deactivation - a SqIn may be possible, which would save self from being removed imminently
+                # Typical deactivation
+                
+                # If a backend is only a few ms away, just add it in for free without calling it a double squeeze
+                for be,be_sp in br_edge.backends:
+                    if be.offset_ms > 0 and be.offset_ms < 3:
+                        new_path.record.score_sp += be.points
+
+                # SqIn may be possible, which would save self from being removed imminently
                 if br_edge.sqinout_amount > 0:
                     print("\tSpecial condition for late SqIn occurred.")
                     new_path.record.activations[-1].sqinouts.append('-')

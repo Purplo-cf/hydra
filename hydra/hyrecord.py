@@ -26,8 +26,15 @@ class HydraRecord:
         record.notecount = song.note_count
     
         for graphpath in pather.paths:
+            for act in graphpath.record.activations:
+                if act.frontend:
+                    act.frontend.chord = HydraRecordChord.from_chord(act.frontend.chord)
+                for be in act.backends:
+                    be.chord = HydraRecordChord.from_chord(be.chord)
+            
+            graphpath.record.score_total = graphpath.record.optimal()
+            
             record.paths.append(graphpath.record)
-    
     
         return record
     
