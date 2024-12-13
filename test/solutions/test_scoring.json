@@ -1,0 +1,191 @@
+{
+    "records": [
+		{
+            "version": null,
+            "songid": "Test - Base Score Normal",
+            "difficulty": "expert",
+            "prodrums": true,
+            "bass2x": true,
+            "notecount": 40,
+            "solos": [],
+            "multsqueezes": [],
+            "paths": [
+                {
+                    "activations": [],
+                    "avgmultiplier": null,
+					"score_base": 2000,
+					"score_combo": 3150,
+					"score_sp": 0,
+					"score_solo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
+                }
+            ]
+        },
+        {
+            "version": null,
+            "songid": "A Lot Like Birds - Think Dirty out Loud",
+            "difficulty": "expert",
+            "prodrums": true,
+            "bass2x": true,
+            "notecount": 2286,
+            "solos": [],
+            "multsqueezes": [],
+            "paths": [
+                {
+                    "activations": [],
+                    "avgmultiplier": null,
+					"score_base": 122130,
+					"score_combo": 417855,
+					"score_sp": 0,
+					"score_solo": 0,
+					"score_accents": 3250,
+					"score_ghosts": 14900
+                }
+            ]
+        },
+		{
+            "version": null,
+            "songid": "Tigran Hamasyan - Entertain Me [tomato]",
+            "difficulty": "expert",
+            "prodrums": true,
+            "bass2x": true,
+            "notecount": 977,
+            "solos": [],
+            "multsqueezes": [],
+            "paths": [
+                {
+                    "activations": [
+                        {
+                            "skips": 0,
+                            "measure": 22.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": null,
+                                "blue": null,
+                                "green": null
+                            },
+                            "sp_meter": 2
+                        },
+                        {
+                            "skips": 0,
+                            "measure": 41.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": "cymbal",
+                                "blue": null,
+                                "green": "cymbal"
+                            },
+                            "sp_meter": 2
+                        },
+                        {
+                            "skips": 0,
+                            "measure": 67.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": "cymbal",
+                                "blue": null,
+                                "green": "cymbal"
+                            },
+                            "sp_meter": 2
+                        },
+                        {
+                            "skips": 1,
+                            "measure": 108.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": "cymbal",
+                                "blue": null,
+                                "green": "cymbal"
+                            },
+                            "sp_meter": 3
+                        }
+                    ],
+                    "avgmultiplier": null,
+                    "score_base": 55390,
+					"score_combo": 168600,
+					"score_sp": 61280,
+					"score_solo": 0,
+					"score_accents": 250,
+					"score_ghosts": 1650
+                }
+            ]
+        },
+		{
+            "version": null,
+            "songid": "Hail The Sun - Missed Injections",
+            "difficulty": "expert",
+            "prodrums": true,
+            "bass2x": true,
+            "notecount": 1961,
+            "solos": [],
+            "multsqueezes": [
+                {
+                    "multiplier": 2,
+                    "chord": {
+                        "kick": null,
+                        "red": "normal",
+                        "yellow": null,
+                        "blue": null,
+                        "green": "cymbal"
+                    },
+                    "squeezecount": 1,
+                    "points": 15
+                },
+                {
+                    "multiplier": 4,
+                    "chord": {
+                        "kick": "normal",
+                        "red": null,
+                        "yellow": null,
+                        "blue": null,
+                        "green": "cymbal"
+                    },
+                    "squeezecount": 1,
+                    "points": 15
+                }
+            ],
+            "paths": [
+                {
+                    "activations": [
+                        {
+                            "skips": 3,
+                            "measure": 87.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": "cymbal",
+                                "blue": null,
+                                "green": "cymbal"
+                            },
+                            "sp_meter": 4
+                        },
+                        {
+                            "skips": 0,
+                            "measure": 164.0,
+                            "chord": {
+                                "kick": "normal",
+                                "red": null,
+                                "yellow": null,
+                                "blue": null,
+                                "green": "cymbal"
+                            },
+                            "sp_meter": 2
+                        }
+                    ],
+                    "avgmultiplier": null,
+                    "score_base": 111235,
+					"score_combo": 350730,
+					"score_sp": 61360,
+					"score_solo": 0,
+					"score_accents": 3250,
+					"score_ghosts": 3500
+                }
+            ]
+        }
+    ]
+}

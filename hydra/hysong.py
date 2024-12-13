@@ -1,7 +1,9 @@
 import mido
 import re
 from . import hynote
+from . import hymisc
 
+        
 class SongTimestamp:
     
     def __init__(self):
@@ -9,6 +11,15 @@ class SongTimestamp:
         self.time = 0.0
         self.measure = 0.0
         self.beat = 0.0
+        
+        # Tick from start of song
+        self.tick = 0
+        # Measure (int), then ticks into the measure
+        self.measure_tick = (0, 0)
+        # Beat (int), then ticks into the beat
+        self.beat_tick = (0, 0)
+        
+        self.timecode = None
         
         self.beat_earlyhit = None
         self.beat_latehit = None
@@ -25,9 +36,8 @@ class SongTimestamp:
         self.flag_sp = False
         
         # to do: completely linked to flag_activation, could be simplified?
-        self.activation_fill_length_seconds = None
-        self.activation_fill_start_measure = None
         self.activation_fill_start_beat = None
+        self.activation_fill_length_ticks = None
         
         # Meter
         self.tempo = None
@@ -35,9 +45,7 @@ class SongTimestamp:
         self.ts_denominator = None
 
 # Common and streamlined format for the optimizer to run through.
-# The main structure is an ordered sequence of timestamps. Each timestamp contains all the notes and markers happening at that time.
-# Most events are attached to chords, but a few aren't: Activation fill starts.
-# To do: Move grants sp, is activation, etc. from chord to timestamp.
+# The main structure is an ordered sequence of SongTimestamps.
 class Song:
     
     def __init__(self):
@@ -47,6 +55,10 @@ class Song:
         self.ghost_count = 0
         self.accent_count = 0
         self.solo_note_count = 0
+        
+        self.tick_resolution = None
+        self.measure_map = {}
+        self.tempo_map = {}
         
         self.generated_fills = False
     
@@ -62,9 +74,8 @@ class Song:
                 assert(timestamp.ts_denominator != None)
                 if abs(round(timestamp.measure) - timestamp.measure) < 0.00001 and (round(timestamp.measure) - 3) % 4 == 0 and timestamp.chord != None and not timestamp.flag_sp:
                     timestamp.flag_activation = True
-                    timestamp.activation_fill_start_measure = timestamp.measure - 0.5
-                    timestamp.activation_fill_length_seconds = 60.0 / timestamp.tempo * (leadin_ts_numerator / 2) * (4/leadin_ts_denominator)
                     timestamp.activation_fill_start_beat = timestamp.beat - (leadin_ts_numerator / 2) * (4/leadin_ts_denominator)
+                    timestamp.activation_fill_length_ticks = self.tick_resolution * leadin_ts_numerator // 2 * 4 // leadin_ts_denominator
                 leadin_ts_numerator = timestamp.ts_numerator
                 leadin_ts_denominator = timestamp.ts_denominator
 
@@ -82,6 +93,7 @@ class MidiParser:
         self.elapsed_time = 0.0
         self.elapsed_measures = 0.0
         self.elapsed_beats = 0.0
+        self.elapsed_ticks = 0
         self.ticks_per_beat = None
         
         # A fill ended, so the next chord will be marked as an activation (but we need to wait for it to be finalized).
@@ -148,6 +160,11 @@ class MidiParser:
                 self.timestamp.time = self.elapsed_time
                 self.timestamp.measure = 1 + self.elapsed_measures
                 self.timestamp.beat = self.elapsed_beats
+                self.timestamp.tick = self.elapsed_ticks
+                self.timestamp.measure_tick = (int(self.timestamp.measure), (self.timestamp.measure - int(self.timestamp.measure)) * self.ts_numerator * (4/self.ts_denominator) * self.ticks_per_beat)
+                self.timestamp.beat_tick = (int(self.timestamp.beat), (self.timestamp.beat - int(self.timestamp.beat)) * self.ticks_per_beat)
+            
+                self.timestamp.timecode = hymisc.Timecode(self.ticks_per_beat, None, None, self.elapsed_ticks)
                 
                 self.timestamp.tempo = self.tempo
                 self.timestamp.ts_numerator = self.ts_numerator
@@ -168,13 +185,13 @@ class MidiParser:
                 
             if self.fill_primed:
                 self.timestamp.flag_activation = True
-                self.timestamp.activation_fill_length_seconds = self.timestamp.time - self.fill_start_time
-                self.timestamp.activation_fill_start_measure = self.fill_start_measure
                 self.timestamp.activation_fill_start_beat = self.fill_start_beat
+                self.timestamp.activation_fill_length_ticks = self.elapsed_ticks - self.fill_start_tick
                 self.fill_primed = False
                 self.fill_start_time = None
                 self.fill_start_measure = None
                 self.fill_start_beat = None
+                self.fill_start_tick = None
                 
             # Update time.
             ticks_per_measure = self.ticks_per_beat * self.ts_numerator * (4/self.ts_denominator)
@@ -183,6 +200,7 @@ class MidiParser:
             self.elapsed_time += msg.time
             self.elapsed_measures += msg_measures
             self.elapsed_beats += mido.second2tick(msg.time, self.ticks_per_beat, self.tempo) / self.ticks_per_beat
+            self.elapsed_ticks += mido.second2tick(msg.time, self.ticks_per_beat, self.tempo)
         
         # Text marker to begin disco flip - interpret Red as YellowCym and YellowCym as Red
         if msg.type == 'text' and re.fullmatch(r'\[mix.3.drums\d?d\]', msg.text):
@@ -196,10 +214,15 @@ class MidiParser:
         if msg.type in ['set_tempo']:
             self.tempo = msg.tempo
             
+            self.song.tempo_map[self.elapsed_ticks] = 60000000 / msg.tempo
+            
         # Time signature
         if msg.type in ['time_signature']:
             self.ts_numerator = msg.numerator
             self.ts_denominator = msg.denominator
+            
+            # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
+            self.song.measure_map[self.elapsed_ticks] = self.ticks_per_beat * self.ts_numerator * 4 // self.ts_denominator
             
         if msg.type in ['note_on', 'note_off']:
             note_started = msg.type == 'note_on' and msg.velocity > 0
@@ -214,6 +237,7 @@ class MidiParser:
                         self.fill_start_time = self.elapsed_time
                         self.fill_start_measure = 1 + self.elapsed_measures
                         self.fill_start_beat = self.elapsed_beats
+                        self.fill_start_tick = self.elapsed_ticks
                     if note_ended:
                         # When time advances, the current chord can be marked as an activation.
                         self.fill_primed = True
@@ -264,10 +288,15 @@ class MidiParser:
                 t.clear()
                 
         self.song = Song()
+        self.song.tick_resolution = self.ticks_per_beat
         
         for m in mid:
             self.read_message(m)
         self.push_timestamp()
+        
+        for ts in self.song.sequence:
+            ts.timecode.measure_map = self.song.measure_map
+            ts.timecode.tempo_map = self.song.tempo_map
         
         self.song.check_activations()
         return self.song
@@ -500,6 +529,90 @@ class ChartParser:
         
         return (tempo, ts_numerator, ts_denominator)
         
+    def tick_timings(self, tick):
+        ts_numerator = 4
+        ts_denominator = 4
+        
+        handled_ticks = 0
+        acc_beat = 0
+        acc_measure = 0
+        beats = 0
+        measures = 0
+        for entry_tick,entries in self.sections["SyncTrack"].data.items():
+            if entry_tick > tick:
+                break
+            
+            new_ticks = entry_tick - handled_ticks
+
+            acc_beat += new_ticks
+            while acc_beat >= self.resolution:
+                acc_beat -= self.resolution
+                beats += 1
+                acc_measure += 1
+                
+            while acc_measure >= ts_numerator:
+                acc_measure -= ts_numerator
+                measures += 1
+            
+            handled_ticks = entry_tick
+            
+            for entry in entries:
+                    
+                if entry.ts_numerator != None:
+                    ts_numerator = entry.ts_numerator
+                
+                if entry.ts_denominator != None:
+                    ts_denominator = entry.ts_denominator
+        
+        new_ticks = tick - handled_ticks
+        acc_beat += new_ticks
+        while acc_beat >= self.resolution:
+            acc_beat -= self.resolution
+            beats += 1
+            acc_measure += 1
+            
+        while acc_measure >= ts_numerator:
+            acc_measure -= ts_numerator
+            measures += 1
+        
+        return ((beats, acc_beat), (measures, acc_measure * self.resolution + acc_beat))
+            
+            
+    def timing_maps(self):
+        ts_numerator = 4
+        ts_denominator = 4
+        current_ticks_per_measure = None
+        mm = {}
+        
+        tempo = None
+        tm = {}
+        for entry_tick,entries in self.sections["SyncTrack"].data.items():
+            
+            for entry in entries:        
+                if entry.ts_numerator != None:
+                    ts_numerator = entry.ts_numerator
+                    
+                    # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
+                    update = self.resolution * ts_numerator * 4 // ts_denominator
+                    if current_ticks_per_measure != update:
+                        current_ticks_per_measure = update
+                        mm[entry_tick] = current_ticks_per_measure
+                
+                if entry.ts_denominator != None:
+                    ts_denominator = entry.ts_denominator
+                    
+                    # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
+                    update = self.resolution * ts_numerator * 4 // ts_denominator
+                    if current_ticks_per_measure != update:
+                        current_ticks_per_measure = update
+                        mm[entry_tick] = current_ticks_per_measure
+            
+                if entry.tempo_bpm != None and entry.tempo_bpm != tempo:
+                    tempo = entry.tempo_bpm
+                    
+                    tm[entry_tick] = tempo
+            
+        return (mm, tm)
             
     def parsefile(self, filename):
         self.song = Song()
@@ -508,6 +621,9 @@ class ChartParser:
             self.load_sections(charttxt)
             
         self.resolution = int(self.sections["Song"].data["Resolution"][0].property)
+        self.song.tick_resolution = self.resolution
+        
+        self.song.measure_map, self.song.tempo_map = self.timing_maps()
         
         solo_on = False
 
@@ -527,7 +643,10 @@ class ChartParser:
             timestamp.measure_earlyhit = self.time_to_measure(timestamp.time - 0.070)
             timestamp.measure_latehit = self.time_to_measure(timestamp.time + 0.070)
             timestamp.beat = tick / self.resolution
-
+            timestamp.tick = tick
+            
+            tt = self.tick_timings(tick)
+            timestamp.timecode = hymisc.Timecode(self.resolution, self.song.measure_map, self.song.tempo_map, tick)
             
             timestamp.flag_solo = solo_on
             
@@ -627,6 +746,7 @@ class ChartParser:
                             fill_starttime = timestamp.time #self.tick_to_time(tick)
                             fill_startmeasure = timestamp.measure #self.time_to_measure(fill_starttime)
                             fill_startbeat = timestamp.beat
+                            fill_ticklength = tick_entry.phraselength
                         case 65:
                             # Single roll marker
                             pass 
@@ -662,13 +782,13 @@ class ChartParser:
             # Fills apply to the chord on the end tick, if present, so this check happens after adding the timestamp.
             if fill_endtick != None and tick >= fill_endtick:
                 self.song.sequence[-1].flag_activation = True
-                self.song.sequence[-1].activation_fill_length_seconds = self.tick_to_time(tick) - fill_starttime
-                self.song.sequence[-1].activation_fill_start_measure = fill_startmeasure
                 self.song.sequence[-1].activation_fill_start_beat = fill_startbeat
+                self.song.sequence[-1].activation_fill_length_ticks = fill_ticklength
                 fill_endtick = None
                 fill_starttime = None
                 fill_startmeasure = None
                 fill_startbeat = None
+                fill_ticklength = None
         
         self.song.check_activations()
         return self.song

@@ -50,7 +50,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 135720
+                    "score_sp": 135720,
+					"score_base": 633620,
+					"score_combo": 0,
+					"score_accents": 29900,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -92,13 +96,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 117120
+                    "score_sp": 117120,
+					"score_base": 633620,
+					"score_combo": 0,
+					"score_accents": 29900,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 633620,
-            "score_combo": 0,
-            "score_accents": 29900,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -186,7 +190,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 182080
+                    "score_sp": 182080,
+					"score_base": 480465,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -264,13 +272,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 171900
+                    "score_sp": 171900,
+					"score_base": 480465,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 480465,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -285,13 +293,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 664350,
+					"score_combo": 0,
+					"score_accents": 104140,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 664350,
-            "score_combo": 0,
-            "score_accents": 104140,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -368,7 +376,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 239520
+                    "score_sp": 239520,
+					"score_base": 571970,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -410,13 +422,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 223920
+                    "score_sp": 223920,
+					"score_base": 571970,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 571970,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -504,7 +516,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 345020
+                    "score_sp": 345020,
+					"score_base": 890590,
+					"score_combo": 0,
+					"score_accents": 21860,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -582,13 +598,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 333460
+                    "score_sp": 333460,
+					"score_base": 890590,
+					"score_combo": 0,
+					"score_accents": 21860,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 890590,
-            "score_combo": 0,
-            "score_accents": 21860,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -664,7 +680,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 150940
+                    "score_sp": 0,
+					"score_base": 770090,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -718,13 +738,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 135500
+                    "score_sp": 0,
+					"score_base": 770090,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 511850,
-            "score_combo": 0,
-            "score_accents": 59200,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -813,13 +833,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 205140
+                    "score_sp": 0,
+					"score_base": 1248495,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 778455,
-            "score_combo": 0,
-            "score_accents": 168100,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -847,13 +867,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 809500,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 809500,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -930,7 +950,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 228860
+                    "score_sp": 228860,
+					"score_base": 451405,
+					"score_combo": 0,
+					"score_accents": 13840,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -996,13 +1020,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 211600
+                    "score_sp": 211600,
+					"score_base": 451405,
+					"score_combo": 0,
+					"score_accents": 13840,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 451405,
-            "score_combo": 0,
-            "score_accents": 13840,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1114,7 +1138,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 283720
+                    "score_sp": 0,
+					"score_base": 1229730,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -1216,13 +1244,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 268640
+                    "score_sp": 0,
+					"score_base": 1229730,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 648955,
-            "score_combo": 0,
-            "score_accents": 239055,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1262,13 +1290,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 1299450,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 1299450,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1296,13 +1324,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 343570,
+					"score_combo": 0,
+					"score_accents": 32100,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 343570,
-            "score_combo": 0,
-            "score_accents": 32100,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1426,7 +1454,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 197320
+                    "score_sp": 197320,
+					"score_base": 977320,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -1540,13 +1572,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 185280
+                    "score_sp": 185280,
+					"score_base": 977320,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 977320,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1561,13 +1593,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 469355,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 457155,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1632,7 +1664,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 139920
+                    "score_sp": 139920,
+					"score_base": 443250,
+					"score_combo": 0,
+					"score_accents": 10780,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -1674,13 +1710,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 121760
+                    "score_sp": 121760,
+					"score_base": 443250,
+					"score_combo": 0,
+					"score_accents": 10780,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 443250,
-            "score_combo": 0,
-            "score_accents": 10780,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1769,7 +1805,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 253780
+                    "score_sp": 253780,
+					"score_base": 665410,
+					"score_combo": 0,
+					"score_accents": 19000,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -1835,13 +1875,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 225700
+                    "score_sp": 225700,
+					"score_base": 665410,
+					"score_combo": 0,
+					"score_accents": 19000,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 665410,
-            "score_combo": 0,
-            "score_accents": 19000,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1856,13 +1896,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 725345,
+					"score_combo": 0,
+					"score_accents": 17640,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 725345,
-            "score_combo": 0,
-            "score_accents": 17640,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -1926,7 +1966,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 136800
+                    "score_sp": 136800,
+					"score_base": 471190,
+					"score_combo": 0,
+					"score_accents": 47200,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -1980,7 +2024,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 136800
+                    "score_sp": 136800,
+					"score_base": 471190,
+					"score_combo": 0,
+					"score_accents": 47200,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2034,13 +2082,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 116680
+                    "score_sp": 116680,
+					"score_base": 471190,
+					"score_combo": 0,
+					"score_accents": 47200,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 471190,
-            "score_combo": 0,
-            "score_accents": 47200,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2055,13 +2103,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 488010,
+					"score_combo": 0,
+					"score_accents": 40600,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 488010,
-            "score_combo": 0,
-            "score_accents": 40600,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2137,7 +2185,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 420900
+                    "score_sp": 420900,
+					"score_base": 729960,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2215,13 +2267,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 414060
+                    "score_sp": 414060,
+					"score_base": 729960,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 729960,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2249,13 +2301,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 676130,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 676130,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2283,13 +2335,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 466165,
+					"score_combo": 0,
+					"score_accents": 56430,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 466165,
-            "score_combo": 0,
-            "score_accents": 56430,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2402,7 +2454,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 185120
+                    "score_sp": 0,
+					"score_base": 1022200,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2504,13 +2560,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 184960
+                    "score_sp": 184960,
+					"score_base": 800780,
+					"score_combo": 0,
+					"score_accents": 22300,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 800780,
-            "score_combo": 0,
-            "score_accents": 22300,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2587,7 +2643,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 161900
+                    "score_sp": 161900,
+					"score_base": 688250,
+					"score_combo": 0,
+					"score_accents": 228980,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2641,13 +2701,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 133020
+                    "score_sp": 133020,
+					"score_base": 688250,
+					"score_combo": 0,
+					"score_accents": 228980,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 688250,
-            "score_combo": 0,
-            "score_accents": 228980,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2711,7 +2771,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 168360
+                    "score_sp": 168360,
+					"score_base": 704990,
+					"score_combo": 0,
+					"score_accents": 36500,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2765,13 +2829,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 126220
+                    "score_sp": 126220,
+					"score_base": 704990,
+					"score_combo": 0,
+					"score_accents": 36500,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 704990,
-            "score_combo": 0,
-            "score_accents": 36500,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2835,7 +2899,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 101660
+                    "score_sp": 101660,
+					"score_base": 402755,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -2889,13 +2957,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 97440
+                    "score_sp": 97440,
+					"score_base": 402755,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 402755,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -2959,13 +3027,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 153460
+                    "score_sp": 153460,
+					"score_base": 525540,
+					"score_combo": 0,
+					"score_accents": 14840,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 525540,
-            "score_combo": 0,
-            "score_accents": 14840,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3041,13 +3109,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 187940
+                    "score_sp": 187940,
+					"score_base": 705210,
+					"score_combo": 0,
+					"score_accents": 122590,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 705210,
-            "score_combo": 0,
-            "score_accents": 122590,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3111,7 +3179,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 153540
+                    "score_sp": 153540,
+					"score_base": 404305,
+					"score_combo": 0,
+					"score_accents": 56350,
+					"score_ghosts": 0		
                 },
                 {
                     "activations": [
@@ -3153,13 +3225,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 146440
+                    "score_sp": 146440,
+					"score_base": 404305,
+					"score_combo": 0,
+					"score_accents": 56350,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 404305,
-            "score_combo": 0,
-            "score_accents": 56350,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3248,7 +3320,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 143660
+                    "score_sp": 143660,
+					"score_base": 548480,
+					"score_combo": 0,
+					"score_accents": 102300,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -3314,13 +3390,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 137020
+                    "score_sp": 137020,
+					"score_base": 548480,
+					"score_combo": 0,
+					"score_accents": 102300,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 548480,
-            "score_combo": 0,
-            "score_accents": 102300,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3335,13 +3411,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 413810,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 405210,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3406,13 +3482,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 61360
+                    "score_sp": 61360,
+					"score_base": 438355,
+					"score_combo": 0,
+					"score_accents": 30360,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 438355,
-            "score_combo": 0,
-            "score_accents": 30360,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3464,13 +3540,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 105040
+                    "score_sp": 105040,
+					"score_base": 562715,
+					"score_combo": 0,
+					"score_accents": 15145,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 562715,
-            "score_combo": 0,
-            "score_accents": 15145,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3485,13 +3561,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 401785,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 401785,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3506,13 +3582,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 483675,
+					"score_combo": 0,
+					"score_accents": 74460,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 483675,
-            "score_combo": 0,
-            "score_accents": 74460,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3527,13 +3603,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 426705,
+					"score_combo": 0,
+					"score_accents": 53460,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 426705,
-            "score_combo": 0,
-            "score_accents": 53460,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3621,13 +3697,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 107720
+                    "score_sp": 107720,
+					"score_base": 430640,
+					"score_combo": 0,
+					"score_accents": 5720,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 430640,
-            "score_combo": 0,
-            "score_accents": 5720,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3692,13 +3768,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 29540
+                    "score_sp": 29540,
+					"score_base": 256895,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 256895,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3713,13 +3789,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 270470,
+					"score_combo": 0,
+					"score_accents": 800,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 270470,
-            "score_combo": 0,
-            "score_accents": 800,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3759,7 +3835,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 44460
+                    "score_sp": 44460,
+					"score_base": 316620,
+					"score_combo": 0,
+					"score_accents": 1040,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -3789,13 +3869,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 38240
+                    "score_sp": 38240,
+					"score_base": 316620,
+					"score_combo": 0,
+					"score_accents": 1040,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 316620,
-            "score_combo": 0,
-            "score_accents": 1040,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3810,13 +3890,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 315360,
+					"score_combo": 0,
+					"score_accents": 50590,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 315360,
-            "score_combo": 0,
-            "score_accents": 50590,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -3893,7 +3973,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 84300
+                    "score_sp": 84300,
+					"score_base": 255815,
+					"score_combo": 0,
+					"score_accents": 42750,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -3923,13 +4007,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 75920
+                    "score_sp": 75920,
+					"score_base": 255815,
+					"score_combo": 0,
+					"score_accents": 42750,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 255815,
-            "score_combo": 0,
-            "score_accents": 42750,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4006,7 +4090,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 66960
+                    "score_sp": 66960,
+					"score_base": 206470,
+					"score_combo": 0,
+					"score_accents": 3760,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4048,13 +4136,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 59340
+                    "score_sp": 59340,
+					"score_base": 206470,
+					"score_combo": 0,
+					"score_accents": 3760,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 206470,
-            "score_combo": 0,
-            "score_accents": 3760,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4143,7 +4231,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 103660
+                    "score_sp": 103660,
+					"score_base": 397575,
+					"score_combo": 0,
+					"score_accents": 7220,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4197,13 +4289,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 93480
+                    "score_sp": 93480,
+					"score_base": 397575,
+					"score_combo": 0,
+					"score_accents": 7220,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 397575,
-            "score_combo": 0,
-            "score_accents": 7220,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4255,7 +4347,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 86760
+                    "score_sp": 86760,
+					"score_base": 281835,
+					"score_combo": 0,
+					"score_accents": 9140,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4297,13 +4393,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 83260
+                    "score_sp": 83260,
+					"score_base": 281835,
+					"score_combo": 0,
+					"score_accents": 9140,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 281835,
-            "score_combo": 0,
-            "score_accents": 9140,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4355,13 +4451,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 62060
+                    "score_sp": 62060,
+					"score_base": 292090,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 292090,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4425,13 +4521,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 49540
+                    "score_sp": 49540,
+					"score_base": 285285,
+					"score_combo": 0,
+					"score_accents": 860,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 285285,
-            "score_combo": 0,
-            "score_accents": 860,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4459,13 +4555,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 447835,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 447835,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4505,7 +4601,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 68400
+                    "score_sp": 68400,
+					"score_base": 266110,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4547,13 +4647,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 58820
+                    "score_sp": 58820,
+					"score_base": 266110,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 266110,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4617,7 +4717,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 53420
+                    "score_sp": 53420,
+					"score_base": 361150,
+					"score_combo": 0,
+					"score_accents": 6000,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4671,13 +4775,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 53420
+                    "score_sp": 53420,
+					"score_base": 361150,
+					"score_combo": 0,
+					"score_accents": 6000,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 361150,
-            "score_combo": 0,
-            "score_accents": 6000,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4741,7 +4845,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 61280
+                    "score_sp": 61280,
+					"score_base": 217690,
+					"score_combo": 0,
+					"score_accents": 8200,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -4783,13 +4891,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 60220
+                    "score_sp": 60220,
+					"score_base": 217690,
+					"score_combo": 0,
+					"score_accents": 8200,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 217690,
-            "score_combo": 0,
-            "score_accents": 8200,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4866,13 +4974,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 70940
+                    "score_sp": 70940,
+					"score_base": 283275,
+					"score_combo": 0,
+					"score_accents": 400,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 283275,
-            "score_combo": 0,
-            "score_accents": 400,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4924,13 +5032,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 67660
+                    "score_sp": 67200,
+					"score_base": 235605,
+					"score_combo": 0,
+					"score_accents": 11060,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 235605,
-            "score_combo": 0,
-            "score_accents": 11060,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -4994,7 +5102,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 65200
+                    "score_sp": 65200,
+					"score_base": 261110,
+					"score_combo": 0,
+					"score_accents": 1840,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -5024,13 +5136,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 64400
+                    "score_sp": 64400,
+					"score_base": 261110,
+					"score_combo": 0,
+					"score_accents": 1840,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 261110,
-            "score_combo": 0,
-            "score_accents": 1840,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -5058,13 +5170,13 @@
                 {
                     "activations": [],
                     "avgmultiplier": null,
-                    "score_sp": 0
+                    "score_sp": 0,
+					"score_base": 337210,
+					"score_combo": 0,
+					"score_accents": 260,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 337210,
-            "score_combo": 0,
-            "score_accents": 260,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -5116,7 +5228,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 60320
+                    "score_sp": 60320,
+					"score_base": 250250,
+					"score_combo": 0,
+					"score_accents": 41900,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -5158,13 +5274,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 56180
+                    "score_sp": 56180,
+					"score_base": 250250,
+					"score_combo": 0,
+					"score_accents": 41900,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 250250,
-            "score_combo": 0,
-            "score_accents": 41900,
-            "score_ghosts": 0
+            ]
         },
         {
             "version": null,
@@ -5204,7 +5320,11 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 41640
+                    "score_sp": 41640,
+					"score_base": 187070,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 },
                 {
                     "activations": [
@@ -5246,13 +5366,13 @@
                         }
                     ],
                     "avgmultiplier": null,
-                    "score_sp": 34640
+                    "score_sp": 34640,
+					"score_base": 187070,
+					"score_combo": 0,
+					"score_accents": 0,
+					"score_ghosts": 0
                 }
-            ],
-            "score_base": 187070,
-            "score_combo": 0,
-            "score_accents": 0,
-            "score_ghosts": 0
+            ]
         }
     ]
 }

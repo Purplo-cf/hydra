@@ -50,7 +50,14 @@ def run_chart(filepath):
     else:
         raise ChartFileError("Unexpected chart filetype")
     
-    optimizer = hypath.Optimizer()
-    optimizer.run(song)
+    graph = hypath.ScoreGraph(song)
     
-    return hyrecord.HydraRecord.from_hydra(song, optimizer)
+    pather = hypath.GraphPather()
+    pather.run(graph)
+    
+    return hyrecord.HydraRecord.from_graph(song, pather)
+    
+    #optimizer = hypath.Optimizer()
+    #optimizer.run(song)
+    
+    #return hyrecord.HydraRecord.from_hydra(song, optimizer)

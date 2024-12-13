@@ -25,6 +25,18 @@ class ChordNote(Enum):
             case ChordNote.CYMBAL_GHOST | ChordNote.CYMBAL_ACCENT:
                 return cymbal * dynamic_mult
                 
+    def is_ghost(self):
+        return self in [ChordNote.GHOST, ChordNote.CYMBAL_GHOST]
+        
+    def is_accent(self):
+        return self in [ChordNote.ACCENT, ChordNote.CYMBAL_ACCENT]
+        
+    def is_dynamic(self):
+        return self.is_ghost() or self.is_accent()
+        
+    def is_cymbal(self):
+        return self in [ChordNote.CYMBAL, ChordNote.CYMBAL_GHOST, ChordNote.CYMBAL_ACCENT]
+                
     def suffix(self, toms_allowed):
         match self:
             case ChordNote.NORMAL:
@@ -98,6 +110,7 @@ class Chord:
     def __init__(self):
         
         # When a chord is primed, it has finished adding notes but can still gain modifiers.
+        # to do: move this to song parsers
         self.primed = False
         
         # Song
@@ -112,15 +125,6 @@ class Chord:
         self.Blue = None
         self.Green = None
         
-        # Modifiers
-        self.is_activation = False
-        self.grants_sp = False
-        self.in_solo = False
-        
-        # Analysis
-        self.multiplier_squeeze_count = 0
-        
-        
     def __str__(self):
         chordstr = ""
         
@@ -130,7 +134,7 @@ class Chord:
         
         return chordstr[:-3]
         
-    # To do: this is add_midi_note
+    # To do: this is really a sort of add_midi_note
     def add_note(self, note, velocity):
         match note:
             case 95:
@@ -208,10 +212,33 @@ class Chord:
 
     # Base scores for each note in the chord.
     def point_spread(self, reverse=False, no_dynamics=False):
-        return sorted([n.basescore(no_dynamics) for n in self.notes()], reverse=reverse)
+        return sorted([n.basescore(no_dynamics=no_dynamics) for n in self.notes()], reverse=reverse)
         
-    def basescore(self):
-        return sum(self.point_spread())
+    def basescore(self, no_dynamics=False):
+        return sum(self.point_spread(no_dynamics=no_dynamics))
+        
+    def debug_basescore(self):
+        b = 0
+        
+        if self.Kick2x:
+            b += 50
+            
+        if self.Kick:
+            b += 50
+        
+        if self.Red:
+            b += 50
+            
+        if self.Yellow:
+            b += 65 if self.Yellow.is_cymbal() else 50
+            
+        if self.Blue:
+            b += 65 if self.Blue.is_cymbal() else 50
+        
+        if self.Green:
+            b += 65 if self.Green.is_cymbal() else 50
+            
+        return b
     
     def get_activation_note_basescore(self):
         return (self.Green or self.Blue or self.Yellow or self.Red or self.Kick or self.Kick2x).basescore()

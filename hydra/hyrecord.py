@@ -1,11 +1,13 @@
+import json
+
 # The end result of Hydra processing: Each unique chart can have 1 HydraRecord per combination of difficulty, norm/pro, and 2x bass.
-class HydraRecord():
+class HydraRecord:
     
     def __init__(self):
         
         self.version = None
         
-        # Identifying info for this record - only 1 HydraRecord for each unique combination of these
+        # Parameters for this record - only 1 HydraRecord for each unique combination of these
         self.songid = None
         self.difficulty = None
         self.prodrums = None
@@ -14,15 +16,21 @@ class HydraRecord():
         # Analysis results
         self.notecount = None
         self.solos = []
-        self.multsqueezes = []
+        #self.multsqueezes = []
         self.paths = []
+       
+    @staticmethod
+    def from_graph(song, pather):
+        record = HydraRecord()
         
-        # Non-SP scoring
-        self.score_base = None      # Sum of base note values (50 or 65) ("Notes" in CH)
-        self.score_combo = None     # Additional points from 2x/3x/4x combo multiplier ("Combo Bonus" in CH)
-        self.score_accents = None  # "Accent Notes" in CH
-        self.score_ghosts = None  # "Ghost Notes" in CH
-        
+        record.notecount = song.note_count
+    
+        for graphpath in pather.paths:
+            record.paths.append(graphpath.record)
+    
+    
+        return record
+    
     @staticmethod
     def from_hydra(song, optimizer):
         record = HydraRecord()
@@ -83,6 +91,9 @@ class HydraRecord():
         record.bass2x = r_dict['bass2x']
         
         record.notecount = r_dict['notecount']
+        
+        record._multsqueezes = []
+        
         for r_solo in r_dict['solos']:
             raise NotImplementedError
         for msq_dict in r_dict['multsqueezes']:
@@ -93,10 +104,12 @@ class HydraRecord():
             multsqueeze.squeezecount = msq_dict['squeezecount']
             multsqueeze.points = msq_dict['points']
             
-            record.multsqueezes.append(multsqueeze)
+            record._multsqueezes.append(multsqueeze)
             
         for path_dict in r_dict['paths']:
             path = HydraRecordPath()
+            
+            path.multsqueezes = record._multsqueezes
             
             for act_dict in path_dict['activations']:
                 act = HydraRecordActivation()
@@ -110,16 +123,12 @@ class HydraRecord():
                 
                 
             path.avgmultiplier = path_dict['avgmultiplier']
-            path.score_sp = path_dict['score_sp']
             
+            for scoreattr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+                setattr(path, scoreattr, path_dict[scoreattr] if scoreattr in path_dict else 0)
+                
             record.paths.append(path)
-            
-            
-        record.score_base = r_dict['score_base']
-        record.score_combo = r_dict['score_combo']
-        record.score_accents = r_dict['score_accents']
-        record.score_ghosts = r_dict['score_ghosts']
-        
+                    
         return record
 
         
@@ -129,18 +138,11 @@ class HydraRecord():
     def json(self):
         return json.dumps(self, default=lambda r: r.__dict__, sort_keys=True, indent=4)
         
-    # There's multiple ways to chop up scoring by source, but this way mirrors the CH score screen.
-    def optimal(self):
-        notes = self.score_base
-        combo_bonus = self.score_combo
-        starpower = self.paths[0].score_sp
-        solobonus = sum([s.bonus() for s in self.solos])
-        accents = self.score_accents
-        ghosts = self.score_ghosts
-        
-        return notes + combo_bonus + starpower + solobonus + accents + ghosts
 
-class HydraRecordSolo():
+    def optimal(self):
+        return self.paths[0].optimal()
+
+class HydraRecordSolo:
     
     def __init__(self):
         self.notecount = None
@@ -148,23 +150,45 @@ class HydraRecordSolo():
     def bonus(self):
         return 100 * self.notecount
         
-class HydraRecordPath():
+class HydraRecordPath:
     
     def __init__(self):
         
         self.activations = []
+        self.multsqueezes = []
         self.avgmultiplier = None
-        self.score_sp = None # "Star Power" in CH
+        
+        self.score_base = 0      # Sum of base note values (50 or 65) ("Notes" in CH)
+        self.score_combo = 0     # Additional points from 2x/3x/4x combo multiplier ("Combo Bonus" in CH)
+        self.score_sp = 0 # "Star Power" in CH
+        self.score_solo = 0 
+        self.score_accents = 0  # "Accent Notes" in CH
+        self.score_ghosts = 0  # "Ghost Notes" in CH
 
-class HydraRecordActivation():
+        
+    # There's multiple ways to chop up scoring by source, but this way mirrors the CH score screen.
+    def optimal(self):
+        return self.score_base + self.score_combo + self.score_sp + self.score_solo + self.score_accents + self.score_ghosts
+
+class HydraRecordActivation:
     
     def __init__(self):
         self.skips = None
-        self.measure = None
+        self.timecode = None
         self.chord = None
         self.sp_meter = None
         
-class HydraRecordMultSqueeze():
+        self.frontend = None
+        self.backends = []
+        
+        self.sqinouts = []
+        
+    def __repr__(self):
+        return f"{self.skips}{''.join(self.sqinouts)}\t{self.timecode.measurestr()}\t{self.sp_meter}\t{self.chord.rowstr()}"
+        
+
+        
+class HydraRecordMultSqueeze:
     
     def __init__(self):
         # This squeeze happens while hitting this multiplier (2, 3, or 4)
@@ -176,7 +200,21 @@ class HydraRecordMultSqueeze():
         # The base points gained from performing this squeeze fully vs. completely missing it.
         self.points = None
 
-class HydraRecordChord():
+class HydraRecordFrontendSqueeze:
+    
+    def __init__(self, chord, points):
+        self.chord = chord
+        self.points = points
+        
+class HydraRecordBackendSqueeze:
+    def __init__(self, timecode, chord, points, sqout_points):
+        self.timecode = timecode
+        self.chord = chord
+        self.points = points
+        self.sqout_points = sqout_points
+        self.offset_ms = None
+
+class HydraRecordChord:
     def __init__(self, k, r, y, b, g):
         self.kick = k
         self.red = r
@@ -189,6 +227,9 @@ class HydraRecordChord():
         
     def __repr__(self):
         return json.dumps(self, default=lambda r: r.__dict__, sort_keys=True, indent=4)
+        
+    def rowstr(self):
+        return f"{"K" if self.kick else ""}{"R" if self.red else ""}{"Y" if self.yellow else ""}{"B" if self.blue else ""}{"G" if self.green else ""}"
         
     @staticmethod
     def from_chord(chord):
