@@ -1,125 +1,118 @@
 from functools import total_ordering
 
-# A point in time, available in multiple song-y units.
-# Based in integers and tick remainders for complete accuracy. (Except for ms)
-# Never worry about tick resolution or beats per measure again.
-# to do: The resolution, tempo map, and measure map are required for conversions, yet feel out of place in the struct
+
 @total_ordering
 class Timecode:
+    """A point in time in a song, in multiple representations.
     
-    def __init__(self, resolution, measure_map, tempo_map, ticks):
-        self.resolution = resolution
-        self.measure_map = measure_map
-        self.tempo_map = tempo_map
+    The absolute way to measure time in songs is with ticks, but some contexts
+    want to work with measures, beats, or milliseconds.
+    
+    Timecodes are created with a tick value and song context; the rest of the
+    values are derived.
+    
+    All derived values are, like ticks, fully precise integers; except for
+    milliseconds, which is a float value.
+    
+    """
+    def __init__(self, ticks, song):
+        # Fundamental value
         self.ticks = ticks
         
-        # Cached properties
-        self._beats = None
-        self._measures = None
-        self._ms = None
+        # Derived values
+        self.measure_beats_ticks = [0, 0, 0]
+        self.ms = 0.0
         
-    def __eq__(self, other):
-        return self.ticks == other.ticks
-        
-    def __lt__(self, other):
-        return self.ticks < other.ticks
-        
-    def __hash__(self):
-        return self.ticks
-        
-    def __repr__(self):
-        return str(self.ticks)
-        
-    def measurestr(self):
-        return f"m{self.measures()[0]}{f" + {round(self.measures()[1] / self.resolution, 2)} beats" if self.measures()[1] > 0 else ""}"
-        
-    def beats(self):
-        if self._beats != None:
-            return self._beats
-        
-        self._beats = (1 + self.ticks // self.resolution, self.ticks % self.resolution)
-        return self._beats
-        
-    def measures(self):
-        if self._measures != None:
-            return self._measures
+        self._init_mbt(song)
+        self._init_ms(song)
+    
+    def _init_mbt(self, song):
+        """Iterate over a song's meter to convert ticks to measures.
             
-        
-        counted_ticks = 0
-        current_ticks_per_measure = None
-        counted_measures = 0
-        leftover_ticks = 0
-        for tick_key in sorted(self.measure_map.keys()):
-            if tick_key <= counted_ticks:
-                current_ticks_per_measure = self.measure_map[tick_key]
-                continue
+        After all whole measures are counted, whole beats are counted.
+        The remainder after measures and beats stays as ticks.
             
-            available_ticks = leftover_ticks + min(tick_key, self.ticks) - counted_ticks
+        """
+        assert(song.measure_map)
+        keys = sorted(song.measure_map.keys())
+        assert(keys[0] == 0)
+        at_tick = 0
+        current_ticks_per_m = song.measure_map[0]
+        ticks_to_advance = 0
+        for tick_key in keys[1:]:            
+            ticks_to_advance = min(tick_key - at_tick, self.ticks - at_tick)
+            
+            # Apply measures
+            whole_measures = ticks_to_advance // current_ticks_per_m
+            ticks_to_advance %= current_ticks_per_m
+            
+            self.measure_beats_ticks[0] += whole_measures
+            at_tick += whole_measures * current_ticks_per_m
             
             
-            while available_ticks >= current_ticks_per_measure:
-                available_ticks -= current_ticks_per_measure
-                counted_measures += 1
+            if at_tick + ticks_to_advance == self.ticks:
+                break
+            else:
+                assert(ticks_to_advance == 0)
+        
+            current_ticks_per_m = song.measure_map[tick_key]
             
-            leftover_ticks = available_ticks
-            counted_ticks = min(tick_key, self.ticks)
             
+        ticks_to_advance = self.ticks - at_tick
+        
+        # Remainder: beats, then ticks
+        self.measure_beats_ticks[1] = ticks_to_advance // song.tick_resolution
+        self.measure_beats_ticks[2] = ticks_to_advance % song.tick_resolution
+        
+        self.measure_beats_ticks = tuple(self.measure_beats_ticks)
+    
+    def _init_ms(self, song):
+        """Iterate over a song's tempo map to derive milliseconds."""
+        assert(song.tempo_map)
+        assert(song.tick_resolution)
+        keys = sorted(song.tempo_map.keys())
+        assert(keys[0] == 0)
+        
+        def to_tps(bpm):
+            nonlocal song
+            return bpm * song.tick_resolution / 60
+        
+        at_tick = 0
+        ticks_per_sec = to_tps(song.tempo_map[0])
+        ticks_to_advance = 0
+        for tick_key in keys[1:]:
+            ticks_to_advance = min(tick_key - at_tick, self.ticks - at_tick)
             
+            # Apply ms
+            self.ms += ticks_to_advance / ticks_per_sec * 1000
+            at_tick += ticks_to_advance
             
-            if counted_ticks == self.ticks:
+            if at_tick == self.ticks:
                 break
                 
-            current_ticks_per_measure = self.measure_map[tick_key]
+            ticks_per_sec = to_tps(song.tempo_map[tick_key])
             
-            
-        # One last update with the (unlimited) time after the last meter change
-        available_ticks = leftover_ticks + self.ticks - counted_ticks
+        ticks_to_advance = self.ticks - at_tick
+        self.ms += ticks_to_advance / ticks_per_sec * 1000
         
-        counted_measures += available_ticks // current_ticks_per_measure
-        leftover_ticks = available_ticks % current_ticks_per_measure
-            
-        self._measures = (1 + counted_measures, leftover_ticks)
-        return self._measures
-        
-    def ms(self):
-        if self._ms != None:
-            return self._ms
-            
-        counted_ticks = 0
-        current_bpm = None
-        counted_ms = 0
-        for tick_key in sorted(self.tempo_map.keys()):
-            if tick_key <= counted_ticks:
-                current_bpm = self.tempo_map[tick_key]
-                continue
-        
-            available_ticks = min(tick_key, self.ticks) - counted_ticks
-            counted_ms += available_ticks / self.resolution / current_bpm * 60000
-            counted_ticks += available_ticks
-            
-            if counted_ticks == self.ticks:
-                break
-            
-            current_bpm = self.tempo_map[tick_key]
-        
-        
-        
-        # One last update with the (unlimited) time after the last bpm change
-        available_ticks = self.ticks - counted_ticks
-        counted_ms += available_ticks / self.resolution / current_bpm * 60000
-
-        self._ms = counted_ms
-        
-        if self._ms == 0:
-            print("Calculated ms = 0!!!")
-            print(f"\tTempo map:")
-            for k,v in self.tempo_map.items():
-                print(f"\t\t{k}: {v}")
-        
-        return self._ms
-        
+    
+    def __eq__(self, other):
+        return self.ticks == other.ticks
+    
+    def __lt__(self, other):
+        return self.ticks < other.ticks
+    
+    def __hash__(self):
+        return self.ticks
+    
+    def __repr__(self):
+        return str(self.ticks)
+    
+    def measurestr(self):
+        return f"m{'.'.join(self.measure_beats_ticks)}"
+    
     # Non-mutating add
-    def plusmeasure(self, wholemeasures_to_add):
+    def plusmeasure(self, wholemeasures_to_add, song):
         resolved_ticks = self.ticks
         current_ticks_per_measure = None
         added_ticks = 0
@@ -127,9 +120,9 @@ class Timecode:
         rollover_ticks = 0
         # On the one hand this looks kinda crazy,
         # on the other hand converting to/from measures really is a pain
-        for tick_key in sorted(self.measure_map.keys()):
+        for tick_key in sorted(song.measure_map.keys()):
             if tick_key <= resolved_ticks:
-                current_ticks_per_measure = self.measure_map[tick_key]
+                current_ticks_per_measure = song.measure_map[tick_key]
                 continue
                 
             available_ticks = tick_key - resolved_ticks + rollover_ticks
@@ -149,14 +142,9 @@ class Timecode:
             
             rollover_ticks = available_ticks
             resolved_ticks = tick_key
-            current_ticks_per_measure = self.measure_map[tick_key]
+            current_ticks_per_measure = song.measure_map[tick_key]
             
         # One last update with the (unlimited) time after the last meter change
         added_ticks += current_ticks_per_measure * (wholemeasures_to_add - added_measures)
         
-        return Timecode(self.resolution, self.measure_map, self.tempo_map, self.ticks + added_ticks)
-        
-    # Positive if ts is later than self
-    def offset_ms(self, ts):
-        return ts.ms() - self.ms()
-        
+        return Timecode(self.ticks + added_ticks, song)

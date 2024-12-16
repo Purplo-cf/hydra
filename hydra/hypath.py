@@ -1,27 +1,42 @@
 import shutil
 import copy
-from enum import Enum
 import math
 import json
+from enum import Enum
 
 from . import hynote
 from . import hyrecord
 from . import hymisc
 
-# Boiled-down structure that divides a song into scored regions.
-# Contains branches based on pathing decisions (i.e. skip vs. activate).
-# Creating a ScoreGraph factors out the note-by-note scoring simulation
-# so that when it's time for optimization, we're working with pre-scored chunks.
-class ScoreGraph:
-    
 
+class ScoreGraph:
+    """Description of a song in terms of pathing choices and outcomes.
     
+    Consists of nodes representing timecodes for the song and edges
+    representing either getting further in the song (advancing) or
+    switching between inactive and active SP (branching).
+    
+    To that end, the nodes form two tracks: the normal track and SP
+    track. There are only branch edges between the tracks where it's
+    possible to activate (with a fill) or deactivate (run out of) SP.
+    
+    Edges store information about what is gained (mainly points and SP)
+    from taking that edge.
+    
+    Advancing down a track gets further in the song and accrues points.
+    Branching does not advance time, but possibly accrues features like
+    backends which are specific to the act of toggling SP.
+    
+    Because "your current SP" isn't encoded on the graph, not every path
+    through it is a valid path for the song. However, the graph contains
+    all the info needed to go from start to finish while tracking sp, in
+    order to explore valid paths through the song.
+    """
     def __init__(self, song):
-        
-        self.debug_run_backends = True
-        
-        self.base_track_head = ScoreGraphNode(hymisc.Timecode(song.tick_resolution, song.measure_map, song.tempo_map, 0), False)
-        self.sp_track_head = ScoreGraphNode(hymisc.Timecode(song.tick_resolution, song.measure_map, song.tempo_map, 0), True)
+        """Depends on hysong.Song, for all intents and purposes"""
+        start_time = song.start_time()
+        self.base_track_head = ScoreGraphNode(start_time, False)
+        self.sp_track_head = ScoreGraphNode(start_time, True)
         
         self.start = self.base_track_head
         pending_deacts = set([])
@@ -35,7 +50,7 @@ class ScoreGraph:
         self.acc_ghostscore = 0
         self.combo = 0
         
-        self.acc_sp_phrases = [] # timecodes, each gives 1 sp
+        self.acc_sp_phrases = [] # array of (timecode, map of timecodes: extended timecodes factoring cap into account)
         
         self.debug_total_basescore = 0
         
@@ -49,7 +64,7 @@ class ScoreGraph:
         self.live_backend_edges = [] # deactivation edges that are accepting scored timestamps up to +140ms
         for ts_i, timestamp in enumerate(song.sequence):
             
-            self.recent_deacts = [tc for tc in self.recent_deacts if tc.offset_ms(timestamp.timecode) < 140]
+            self.recent_deacts = [tc for tc in self.recent_deacts if timestamp.timecode.ms - tc.ms < 140]
             
             self.debug_total_basescore += timestamp.chord.debug_basescore()
             
@@ -58,10 +73,9 @@ class ScoreGraph:
 
             for pending_deact in gap_deacts:
                 # Update backend history (but there aren't any new ones)
-                if self.debug_run_backends:
-                    backend_history = [be for be in backend_history if be[0].timecode.offset_ms(timestamp.timecode) < 140]
+                backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
                 self.advance_tracks(pending_deact, None)
-                self.add_deact_edge(backend_history)
+                self.add_deact_edge(backend_history, song)
                     
             # remove the deacts we just handled
             pending_deacts = set([tc for tc in pending_deacts if tc not in gap_deacts])
@@ -98,56 +112,60 @@ class ScoreGraph:
             _backend = (hyrecord.HydraRecordBackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, sqout_sp_points), timestamp.flag_sp)
             
             # Add this chord's sp points to backends that will be fed to any deactivation that happens soon
-            if self.debug_run_backends:
-                backend_history = [be for be in backend_history if be[0].timecode.offset_ms(timestamp.timecode) < 140]
-                backend_history.append(_backend)
+            backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
+            backend_history.append(_backend)
             
             # Add this chord's sp points to any deactivation that happened recently
                 
             #self.live_backend_edges = [e for e in self.live_backend_edges if e.dest.timecode.offset_ms(timestamp.timecode) < 140]
-            if self.debug_run_backends:
-                valid_backend_edges = []
-                for e in self.live_backend_edges:
-                    e_offset = e.dest.timecode.offset_ms(timestamp.timecode)
-                    if e_offset < 140:
-                        valid_backend_edges.append(e)
-                        edge_backend = copy.copy(_backend)
-                        edge_backend[0].offset_ms = e_offset
-                        e.backends.append(edge_backend)
-                        
-                        if edge_backend[1]: # backend is also sp
-                            offset = e.dest.timecode.offset_ms(edge_backend[0].timecode)
-                            e.sqinout_time = min(e.sqinout_time, edge_backend[0].timecode)  if e.sqinout_time else edge_backend[0].timecode
-                            e.sqinout_timing = min(e.sqinout_timing, offset) if e.sqinout_timing != None else offset
-                            e.sqinout_amount += 1
-                self.live_backend_edges = valid_backend_edges
+            valid_backend_edges = []
+            for e in self.live_backend_edges:
+                e_offset = timestamp.timecode.ms - e.dest.timecode.ms
+                if e_offset < 140:
+                    valid_backend_edges.append(e)
+                    edge_backend = copy.copy(_backend)
+                    edge_backend[0].offset_ms = e_offset
+                    e.backends.append(edge_backend)
+                    
+                    if edge_backend[1]: # backend is also sp
+                        offset = edge_backend[0].timecode.ms - e.dest.timecode.ms
+                        e.sqinout_time = min(e.sqinout_time, edge_backend[0].timecode)  if e.sqinout_time else edge_backend[0].timecode
+                        e.sqinout_timing = min(e.sqinout_timing, offset) if e.sqinout_timing != None else offset
+                        e.sqinout_amount += 1
+                        e.sqinout_indicator_time = e.sqinout_indicator_time.plusmeasure(2, song)
+            self.live_backend_edges = valid_backend_edges
                     
             if timestamp.flag_sp:
-                # If any deacts are only the squeeze window away (140ms), keep them (SqOut)
-                sqout_deacts = set([tc for tc in pending_deacts if timestamp.timecode.offset_ms(tc) < 140])
+                # If any deacts are only the squeeze window away (140ms), keep a non-extended copy of them (SqOut)
+                sqout_deacts = set([tc for tc in pending_deacts if tc.ms - timestamp.timecode.ms < 140])
                 
-                # Extend pending deacts by 2 measures - but not past now + 8 (full sp meter)
-                pending_deacts = set([min(tc.plusmeasure(2), timestamp.timecode.plusmeasure(8)) for tc in pending_deacts]).union(sqout_deacts)
-                self.acc_sp_phrases.append(timestamp.timecode)
+                # Deact timecodes that can be extended by this sp: current pending deacts as well as very recently handled deacts (SqIn)
+                extendable_tcs = pending_deacts.union(set(self.recent_deacts))
+                
+                # Deact timecodes after extension: end time + 2 measures or capped at now + 8 measures
+                extension_map = {tc: min(tc.plusmeasure(2, song), timestamp.timecode.plusmeasure(8, song)) for tc in extendable_tcs}
+                
+                # Update deacts
+                pending_deacts = set(extension_map.values()).union(sqout_deacts)
+                
+                # Save info on the graph
+                self.acc_sp_phrases.append((timestamp.timecode, extension_map))
                 self.acc_latest_sp_time = timestamp.timecode
                 
-                # Revive any recent deacts (SqIn)
-                for tc in self.recent_deacts:
-                    pending_deacts.add(tc.plusmeasure(2))
                 
             # handle acts            
             if timestamp.flag_activation:
                 self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_act_edge(timestamp.chord, timestamp_spscore, timestamp.activation_fill_length_ticks)
+                self.add_act_edge(timestamp.chord, timestamp_spscore, timestamp.activation_fill_length_ticks, song)
                 
-                pending_deacts.add(timestamp.timecode.plusmeasure(4))
-                pending_deacts.add(timestamp.timecode.plusmeasure(6))
-                pending_deacts.add(timestamp.timecode.plusmeasure(8))
+                pending_deacts.add(timestamp.timecode.plusmeasure(4, song))
+                pending_deacts.add(timestamp.timecode.plusmeasure(6, song))
+                pending_deacts.add(timestamp.timecode.plusmeasure(8, song))
                 
             # handle deacts
             if timestamp.timecode in pending_deacts:
                 self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_deact_edge(backend_history)
+                self.add_deact_edge(backend_history, song)
                 pending_deacts.remove(timestamp.timecode)
                 
                 self.recent_deacts.append(timestamp.timecode)
@@ -234,7 +252,7 @@ class ScoreGraph:
         self.sp_track_head = sp_edge.dest
         
             
-    def add_act_edge(self, frontend_chord, frontend_points, fill_length_ticks):
+    def add_act_edge(self, frontend_chord, frontend_points, fill_length_ticks, song):
 
         
         act_edge = ScoreGraphEdge()
@@ -252,11 +270,14 @@ class ScoreGraph:
         
         act_edge.activation_fill_length_ticks = fill_length_ticks
         
+        act_edge.activation_initial_end_times = {sp: act_edge.dest.timecode.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
+        
+        
         self.base_track_head.branch_edge = act_edge
         
 
         
-    def add_deact_edge(self, prior_backends):
+    def add_deact_edge(self, prior_backends, song):
         deact_edge = ScoreGraphEdge()
         deact_edge.dest = self.base_track_head
         
@@ -268,19 +289,20 @@ class ScoreGraph:
         deact_edge.accentscore = 0
         deact_edge.ghostscore = 0
         
-        
+        deact_edge.sqinout_indicator_time = deact_edge.dest.timecode
         
         # notes just prior to this deactivation, which are normally in sp but could be squeezed out
         for be in prior_backends:
             deact_edge.backends.append(copy.copy(be))
-            deact_edge.backends[-1][0].offset_ms = deact_edge.dest.timecode.offset_ms(be[0].timecode)
+            deact_edge.backends[-1][0].offset_ms = be[0].timecode.ms - deact_edge.dest.timecode.ms
             
             # Some checks that can be done here instead of every path doing it
             if be[1]: # backend is also sp
-                offset = deact_edge.dest.timecode.offset_ms(be[0].timecode)
+                offset = be[0].timecode.ms - deact_edge.dest.timecode.ms
                 deact_edge.sqinout_time = be[0].timecode
                 deact_edge.sqinout_timing = min(deact_edge.sqinout_timing, offset) if deact_edge.sqinout_timing != None else offset
                 deact_edge.sqinout_amount += 1
+                deact_edge.sqinout_indicator_time = deact_edge.sqinout_indicator_time.plusmeasure(2, song)
         
         #deact_edge.backends = prior_backends
         
@@ -353,6 +375,7 @@ class ScoreGraphEdge:
         self.sqinout_time = None
         self.sqinout_timing = None
         self.sqinout_amount = 0
+        self.sqinout_indicator_time = None
 
         
     def __repr__(self):
@@ -429,7 +452,13 @@ class GraphPather:
         
             
 class GraphPath:
+    """Quick early note:
     
+    This class should do as little work as possible as it navigates the
+    score graph. Any time that a GraphPath is *building* something, move
+    it to ScoreGraph if at all possible.
+    
+    """
     def __init__(self):
         self.record = hyrecord.HydraRecordPath()
         
@@ -484,8 +513,7 @@ class GraphPath:
         
         #print(f"\tI'm at {self.currentnode.timecode.measurestr()} and SP is {'' if self.currentnode.is_sp else 'in'}active...")
         
-        if len(self.record.activations) >= 3 and self.record.activations[0].timecode.measures()[0] == 27 and self.record.activations[1].timecode.measures()[0] == 47 and self.record.activations[2].timecode.measures()[0] == 79:
-            print("Target path advancing.")
+
         
         adv_edge = self.currentnode.adv_edge
         if adv_edge:
@@ -496,15 +524,20 @@ class GraphPath:
             self.record.score_accents += adv_edge.accentscore
             self.record.score_ghosts += adv_edge.ghostscore
             #print(f"\tGoing to {adv_edge.dest.timecode.measurestr()}.")
+            # Applying SP on this edge
             if self.currentnode.is_sp:
                 # Path is in SP: Immediately "spend" SP bars and adjust the sp end time
                 #print(f"\tSP: {self.sp} + {len(adv_edge.sp_times)} = {min(max(0, self.sp + len(adv_edge.sp_times)), 4)}.")
                 
-                for sptc in adv_edge.sp_times:
+                # Handling each sp individually since SP capping is based on each one's particular time
+                # To do: Find a way to store the plusmeasures on the graph
+                # The sp_times can be a tuple with the sp time and the sp time + 8 measures
+                # The sp extension is actually the same as the pending_deact extensions in ScoreGraph so let's use those
+                for sptc, extension_map in adv_edge.sp_times:
                     if self.buffered_sqin_sp > 0:
                         self.buffered_sqin_sp -= 1
                     else:
-                        self.sp_end_time = min(self.sp_end_time.plusmeasure(2), sptc.plusmeasure(8))
+                        self.sp_end_time = extension_map[self.sp_end_time]
                 
             else:
                 # Path isn't in SP: Add SP bars
@@ -530,8 +563,7 @@ class GraphPath:
         if self.is_complete():
             #print("\tOops, I was already done.")
             return
-        if len(self.record.activations) >= 3 and self.record.activations[0].timecode.measures()[0] == 27 and self.record.activations[1].timecode.measures()[0] == 47 and self.record.activations[2].timecode.measures()[0] == 79:
-            print("Target path branching.")
+
         #print(f"\tI'm at {self.currentnode.timecode.measurestr()} and SP is {'' if self.currentnode.is_sp else 'in'}active...")
         
         br_edge = self.currentnode.branch_edge
@@ -547,8 +579,8 @@ class GraphPath:
         # Check conditions for deactivation
         sq_out = False
         if not br_edge.dest.is_sp and br_edge.dest.timecode != self.sp_end_time:
-            # Normal conditions for deactivation not met, but maybe a SqOut is possible
-            if not br_edge.dest.is_sp and br_edge.dest.timecode.plusmeasure(2 * br_edge.sqinout_amount) == self.sp_end_time:
+            # This path is deactivating later, but maybe we can tell the only sp time left was squeezed in, in which case we can squeeze it out.
+            if br_edge.sqinout_indicator_time == self.sp_end_time:
                 sq_out = True
                 #print("\tSqOut conditions met")
             else:
@@ -574,8 +606,7 @@ class GraphPath:
             new_path.record.activations[-1].frontend = br_edge.frontend
             new_path.record.score_sp += br_edge.frontend.points
             
-            
-            new_path.sp_end_time = br_edge.dest.timecode.plusmeasure(2 * self.sp)
+            new_path.sp_end_time = br_edge.activation_initial_end_times[self.sp]
             
             #print(f"\tNewly-branched path has an sp end time of {new_path.sp_end_time} (its current time is {new_path.currentnode.timecode})")
             
@@ -616,7 +647,7 @@ class GraphPath:
                     new_path.record.activations[-1].sqinouts.append('-')
                     self.record.activations[-1].sqinouts.append('+')
                     # self got here by being at its sp end time, but now it can be extended.
-                    self.sp_end_time = self.sp_end_time.plusmeasure(2 * br_edge.sqinout_amount)
+                    self.sp_end_time = br_edge.sqinout_indicator_time
                     self.buffered_sqin_sp = br_edge.sqinout_amount
         
         return new_path
@@ -674,312 +705,6 @@ def sourcescores(chord, combo, sp_active, reverse=False, sqout=False):
         points_by_source['combospdynamic_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and sp_active and note.is_dynamic() else 0
     
     return points_by_source
-     
-# To do: A better name that reflects that *this* is the part that is simulating score gains and SP behavior.
-class Path:
-    
-    uid = 1
-    
-    def __init__(self):
-    
-        # Score not including dynamics or star power and missing all point squeezes
-        self.basescore = 0
-        self.basedynamics = 0
-        # Score from the star power multiplier
-        self.spscore = 0
-        
-        self.solobonus = 0
-        
-        self.debug_id = 0
-        
-        # Skips/activations update these
-        self.current_skips = 0
-        self.skipped_quantum_fill = None
-        self.activations = []
-        
-        self.multiplier_squeezes = []
-        self.activation_squeezes = []
-        self.backend_squeezes = []
-        
-        # Gameplay variables
-        self.sp_meter = 0.0 # 0.0 to 1.0
-        self.sp_active = False
-        # todo: only use "timestamp" for time or measures. These are more like snapshots
-        self.chord_sp_timestamp = False
-        self.chord_sp_border_timestamp = False
-        self.sp_just_ended = False
-        
-        
-        self.latest_timestamp_time = 0.0
-        self.latest_timestamp_measure = 0
-        
-        self.sp_ready_time = None
-        self.sp_ready_measure = None
-        self.sp_ready_measure_earlyhit = None
-        self.sp_ready_measure_latehit = None
-        self.sp_ready_beat = None
-        self.sp_ready_beat_earlyhit = None
-        self.sp_ready_beat_latehit = None
-        
-        self.combo = 0
-
-        
-    def __str__(self):
-        return f"Path {self.debug_id}, {[a.skips for a in self.activations]} + {self.current_skips}, {self.get_best_total_score()}, SP={self.sp_meter}, active SP={self.sp_active}"
-        
-    # A path is strictly better if it has a better score and equal or more star power while in the same star power state and same timestamp.
-    # This function returns True (self is better), False (other is better), or None (inconclusive).
-    # When final is True, stored sp has no value
-    def strictly_compare(self, other, final=False):        
-        if self.sp_active != other.sp_active or self.latest_timestamp_time != other.latest_timestamp_time:
-            return None
-        return self.get_best_total_score() > other.get_best_total_score() and (final or self.sp_meter >= other.sp_meter)
-            
-    def quick_match(self, skips):
-        return len(skips) == len(self.activations) and all([self.activations[i].skips == skips[i] for i in range(len(skips))])
-        
-
-    
-    
-    
-    def get_best_total_score(self):
-        return self.basescore + self.solobonus + self.basedynamics + self.spscore + sum([s.extrascore for s in self.multiplier_squeezes]) + sum([s.extrascore for s in self.activation_squeezes]) + sum([s.extrascore for s in self.backend_squeezes]) 
-    
-    # FCing and hitting the correct path but missing all squeezes and dynamics
-    def get_worst_total_score(self):
-        return self.basescore + self.solobonus + self.spscore
-    
-    def push_timestamp(self, timestamp):
-        # Timestamp comes both with elapsed time and a chord.
-        
-        timestamp_is_sp_border = False
-        
-                
-        # spend sp
-        if self.sp_active:
-            self.sp_meter -= (timestamp.measure - self.latest_timestamp_measure)/8.0
-            # to do: it might be possible to make this floating point error less impactful but it requires a refactor on how measures are calculated/expressed
-            # resolution of this error window: 1/128th of a measure
-            if self.sp_meter <= 0.0009765625:
-                self.sp_meter = 0.0
-                self.sp_active = False
-                timestamp_is_sp_border = True
-                
-                
-        new_paths = []
-        
-
-        
-        # Multiplier squeeze: In a chord that straddles a multiplier, hit lower-value notes first.
-        multiplier_squeeze = MultiplierSqueeze.from_context(timestamp.chord, self.combo, self.sp_active or timestamp_is_sp_border)
-        if multiplier_squeeze != None and not timestamp.flag_activation:
-            # If a chord is both a multiplier squeeze and an activation squeeze (not likely), just treat it as an activation squeeze
-            self.multiplier_squeezes.append(multiplier_squeeze)
-        
-        # Add score for this timestamp
-        chordscore_no_dynamics = comboscore(timestamp.chord, self.combo, reverse=True, no_dynamics=True)
-        
-        # SP and squeeze calculations will assume dynamics are being hit.
-        chordscore = comboscore(timestamp.chord, self.combo, reverse=True)
-        
-        self.combo += timestamp.chord.count()
-        
-        self.basescore += chordscore_no_dynamics
-        self.basedynamics += chordscore - chordscore_no_dynamics
-        
-        if timestamp_is_sp_border:
-            # Backend squeeze: Ranges from whole chord not in sp (this score has already been applied) to fully in sp.
-            backend_squeeze = BackendSqueeze(chordscore)
-            self.activations[-1].backend_squeeze = backend_squeeze
-            self.backend_squeezes.append(backend_squeeze)
-        elif self.sp_active:
-            # Regular sp chord
-            self.spscore += chordscore
-        
-        
-        
-        if timestamp.flag_activation:
-            
-            # First condition for activations: not already in star power and has enough star power
-            if not self.sp_active and self.sp_meter >= 0.5:
-            
-                # Even if SP is ready to activate, it has to be ready for a certain length of time before fills start to appear.
-                # This time (in beats) is measured in realtime, so it's influenced by calibration and player timing.
-                
-                threshold_difference_beats = timestamp.activation_fill_start_beat - self.sp_ready_beat - 4.0
-                
-                if threshold_difference_beats >= 0:
-                    threshold_offset_ms = threshold_difference_beats / (self.sp_ready_beat_latehit - self.sp_ready_beat) * 70
-                else:
-                    threshold_offset_ms = threshold_difference_beats / (self.sp_ready_beat - self.sp_ready_beat_earlyhit) * 70
-                
-                calibration_ms = 0 #-5
-                threshold_offset_ms += calibration_ms
-                
-                offset_limit = 50
-                is_timing_sensitive = abs(threshold_offset_ms) < offset_limit
-                
-                # Forced early fill activation is a bifurcation, unlike regular activations
-                
-                # to do: rewrite this first case so skipping is the main path and the activation is the new path
-                # to do: an "activate" operation on any path
-                
-                if threshold_offset_ms >= 0:
-                    # We're choosing between skipping or activating.
-                    # With the way fills are scored, there's no value in forcing this fill to not appear, which is harder.
-                    
-                    # With normal timing the fill has enough time to appear, which means it's skippable.
-                    # When this is true, an activation is also possible (see next block), but not necessarily vice versa.
-                    skip_option = copy.deepcopy(self)
-                    skip_option.debug_id = Path.uid
-                    Path.uid += 1
-                    skip_option.current_skips += 1
-                    if is_timing_sensitive:
-                        # Whenever the next activation is logged, we'll note that the first skip was timing sensitive.
-                        skip_option.skipped_quantum_fill = CalibrationFill(0, threshold_offset_ms) # Skipped but may not appear
-                    new_paths.append(skip_option)
-                
-                    #print(f"\tActivating.")
-                    # The fill can appear either normally or with early timing, so it's activatable.
-                    self.sp_active = True
-                    
-                    self.activations.append(Activation(timestamp.chord, self.current_skips, self.sp_meter, timestamp.measure))
-                    if self.skipped_quantum_fill != None:
-                        self.skipped_quantum_fill.skips_with_fill += self.current_skips
-                        self.activations[-1].quantum_fill = self.skipped_quantum_fill
-                        self.skipped_quantum_fill = None
-                    elif is_timing_sensitive:
-                        self.activations[-1].quantum_fill = CalibrationFill(0, threshold_offset_ms) # Activated but may not appear
-                    self.sp_ready_time = None
-                    self.sp_ready_measure = None
-                    self.sp_ready_measure_earlyhit = None
-                    self.sp_ready_measure_latehit = None
-                    self.sp_ready_beat = None
-                    self.sp_ready_beat_earlyhit = None
-                    self.sp_ready_beat_latehit = None
-                    self.current_skips = 0
-                    # The activation chord was already scored, but 1 or more notes are actually under the sp that just activated.
-                    # Add the bare minimum (the activation note) to non-squeeze scoring.
-                    self.spscore += timestamp.chord.get_activation_note_basescore()*to_multiplier(self.combo)
-                    
-                    activation_squeeze = ActivationSqueeze.from_context(timestamp.chord, self.combo)
-                    if activation_squeeze != None:
-                        self.activation_squeezes.append(activation_squeeze)
-                        self.activations[-1].activation_squeeze = activation_squeeze
-                
-                
-                elif threshold_offset_ms > -offset_limit:
-                    # The fill can be forced to appear. We're choosing between doing nothing and forcing it to appear AND activating.
-                    # With the way fills are scored, there's no value in forcing this fill to appear, which is harder, just to skip it.
-                    # However, that may still happen accidentally.
-                    forced_early_option = copy.deepcopy(self)
-                    forced_early_option.debug_id = Path.uid
-                    Path.uid += 1
-                    forced_early_option.sp_active = True
-                    forced_early_option.activations.append(Activation(timestamp.chord, forced_early_option.current_skips, forced_early_option.sp_meter, timestamp.measure))
-                    forced_early_option.activations[-1].quantum_fill = CalibrationFill(0, threshold_offset_ms) # Activated, forced to appear
-                    forced_early_option.sp_ready_time = None
-                    forced_early_option.sp_ready_measure = None
-                    forced_early_option.sp_ready_measure_earlyhit = None
-                    forced_early_option.sp_ready_measure_latehit = None
-                    forced_early_option.sp_ready_beat = None
-                    forced_early_option.sp_ready_beat_earlyhit = None
-                    forced_early_option.sp_ready_beat_latehit = None
-                    forced_early_option.current_skips = 0
-                    
-                    # The activation chord was already scored, but 1 or more notes are actually under the sp that just activated.
-                    # Add the bare minimum (the activation note) to non-squeeze scoring.
-                    forced_early_option.spscore += timestamp.chord.get_activation_note_basescore()*to_multiplier(forced_early_option.combo)
-                    
-                    activation_squeeze = ActivationSqueeze.from_context(timestamp.chord, forced_early_option.combo)
-                    if activation_squeeze != None:
-                        forced_early_option.activation_squeezes.append(activation_squeeze)
-                        forced_early_option.activations[-1].activation_squeeze = activation_squeeze
-                    
-                    forced_early_option.latest_timestamp_time = timestamp.time
-                    forced_early_option.latest_timestamp_measure = timestamp.measure
-                    new_paths.append(forced_early_option)
-                    self.skipped_quantum_fill = CalibrationFill(1, threshold_offset_ms) # Doesn't appear but may appear and be skipped
-
-                    
-        if timestamp.flag_sp:
-            
-            if timestamp_is_sp_border:
-                # this path will be an sp extension; spawn a new path where the sp expires.
-                sq_out = copy.deepcopy(self)
-                sq_out.sp_meter = 0.25
-                # there was a brand-new backend squeeze; reduce it by the minimum 1 note that must be left out of sp
-                sq_out.backend_squeezes[-1].extrascore -= timestamp.chord.point_spread()[0]*to_multiplier(self.combo)
-                sq_out.activations[-1].phrase_squeeze = "Out"
-                new_paths.append(sq_out)
-
-                self.activations[-1].phrase_squeeze = "In"
-                # reactivate 
-                self.sp_active = True
-                self.sp_meter = 0.25
-            else:
-                # add sp
-                self.sp_meter = min(self.sp_meter + 0.25, 1.0)
-            
-                if self.sp_meter == 0.5 and not self.sp_active:
-                    # to do: save the whole timestamp as sp_ready_timestamp instead of copying multiple values from it
-                    self.sp_ready_time = timestamp.time
-                    self.sp_ready_measure = timestamp.measure
-                    self.sp_ready_measure_earlyhit = timestamp.measure_earlyhit
-                    self.sp_ready_measure_latehit = timestamp.measure_latehit
-                    self.sp_ready_beat = timestamp.beat
-                    self.sp_ready_beat_earlyhit = timestamp.beat_earlyhit
-                    self.sp_ready_beat_latehit = timestamp.beat_latehit
-        
-        if timestamp.flag_solo:
-            self.solobonus += 100 * timestamp.chord.count()
-        
-        self.latest_timestamp_time = timestamp.time
-        self.latest_timestamp_measure = timestamp.measure
-        
-        return new_paths
-    
-
-def comboscore(chord, combo, reverse=False, no_dynamics=False):
-    mx_thresholds = [10,20,30]
-    multiplier = to_multiplier(combo)
-    chord_points = 0
-    for note_points in chord.point_spread(reverse, no_dynamics):
-        combo += 1
-        if combo in mx_thresholds:
-            multiplier += 1
-    
-        chord_points += note_points * multiplier
-        
-    return chord_points    
-    
-def dynamicscores(chord, combo):
-    s = {'ghosts': 0, 'accents': 0, 'base': 0}
-    
-    mx_thresholds = [10,20,30]
-    multiplier = to_multiplier(combo)
-    for note in sorted(chord.notes(), key=lambda n: n.basescore()):
-        combo += 1
-        if combo in mx_thresholds:
-            multiplier += 1
-        
-        if note.is_ghost():
-            s['ghosts'] += note.basescore() * multiplier
-            
-            if note.is_cymbal():
-                # CH does this for some reason
-                s['ghosts'] -= 15
-                s['base'] += 15
-            
-        if note.is_accent():
-            s['accents'] += note.basescore() * multiplier
-            
-            if note.is_cymbal():
-                # CH does this for some reason
-                s['ghosts'] -= 15
-                s['base'] += 15
-        
-    return s    
     
 def to_multiplier(combo):
     if combo < 10:
@@ -991,115 +716,3 @@ def to_multiplier(combo):
     else:
         return 4
     
-# To do: this are now path details rather than logging related
-class Activation:
-    
-    def __init__(self, chord, skips, sp, measure):
-        self.chord = chord
-        self.skips = skips
-        self.sp = sp
-        self.measure = measure
-        self.activation_squeeze = None
-        self.backend_squeeze = None
-        self.phrase_squeeze = None # todo better data structure for this tristate (None, In, Out)
-        self.quantum_fill = None
-        
-# A chord, the multiplier the chord hits, the number of notes that can be squeezed, and the associated point difference.
-class MultiplierSqueeze:
-    
-    def __init__(self, chord, multiplier, squeeze_count, extrascore):
-        self.chord = chord
-        self.multiplier = multiplier
-        self.squeeze_count = squeeze_count
-        self.extrascore = extrascore
-        
-    @staticmethod
-    def from_context(chord, combo, sp_active):
-        best_points = comboscore(chord, combo)
-        worst_points = comboscore(chord, combo, reverse=True)
-        
-        if sp_active:
-            best_points *= 2
-            worst_points *= 2
-        
-        if best_points != worst_points:
-            squeeze_count = (combo + chord.count()) % 10 + 1
-            return MultiplierSqueeze(chord, to_multiplier(combo), squeeze_count, best_points - worst_points)
-            
-        return None
-
-# skips_with_fill is the 'E number' in path notation.
-# offset_to_flip_ms is the threshold where the fill no longer appears, reducing skips by 1.
-class CalibrationFill:
-
-    def __init__(self, skips_with_fill, offset_to_flip_ms):
-        self.skips_with_fill = skips_with_fill
-        self.offset_to_flip_ms = offset_to_flip_ms
-
-class ActivationSqueeze:
-    
-    def __init__(self, chord, extrascore):
-        self.chord = chord
-        self.extrascore = extrascore
-        
-    @staticmethod
-    def from_context(chord, combo):
-        # best points: entire chord is under sp
-        best_points = comboscore(chord, combo) * 2
-        
-        # worst points: only activation note is under sp; 2x it by adding it again
-        worst_points = comboscore(chord, combo) + chord.get_activation_note_basescore()*to_multiplier(combo + chord.count())
-        
-        if best_points != worst_points:
-            return ActivationSqueeze(chord, best_points - worst_points)
-        
-        return None
-
-class BackendSqueeze:
-    
-    def __init__(self, extrascore):
-        self.extrascore = extrascore
-
-
-# Maintains multiple path objects and feeds song data into them.
-# Paths only know about themselves; Optimizer can compare paths and handle when a branching choice occurs in a path.
-class Optimizer:
-
-    def __init__(self):
-        # Gameplay simulations, each with different scores and a description of the gameplay choices it took (i.e. which spots it deployed star power).
-        self.paths = [Path()]
-
-
-    # Reduce the number of paths to analyze by removing paths that are strictly worse than another path.
-    # When final is True, stored sp has no value.
-    def remove_strictly_worse_paths(self, final=False):
-        path_ranking = sorted(self.paths, key=lambda p: -p.get_best_total_score())
-        bad_paths_i = []
-        for i in range(len(path_ranking)):
-            path_a = path_ranking[i]
-            for j in range(i + 1, len(path_ranking)):
-                path_b = path_ranking[j]
-                if path_a.strictly_compare(path_b, final):
-                    bad_paths_i.append(j)
-                    
-        self.paths = [p for i,p in enumerate(path_ranking) if i not in bad_paths_i]
-
-    # Process a song.
-    def run(self, song):
-        for timestamp in song.sequence:
-            self.read_timestamp(timestamp)
-        self.remove_strictly_worse_paths(final=True)
-
-    def read_timestamp(self, timestamp):
-        new_paths = []
-
-        for p in self.paths:
-            bifurcations = p.push_timestamp(timestamp)
-            new_paths += bifurcations
-            
-        self.paths += new_paths
-        self.remove_strictly_worse_paths()
-
-
-
-

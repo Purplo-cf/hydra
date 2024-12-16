@@ -3,7 +3,6 @@ import re
 from . import hynote
 from . import hymisc
 
-        
 class SongTimestamp:
     
     def __init__(self):
@@ -79,6 +78,9 @@ class Song:
                 leadin_ts_numerator = timestamp.ts_numerator
                 leadin_ts_denominator = timestamp.ts_denominator
 
+    def start_time(self):
+        return hymisc.Timecode(0, self)
+        
 # Converts midi files to a common format for path analysis
 class MidiParser:
     
@@ -163,8 +165,6 @@ class MidiParser:
                 self.timestamp.tick = self.elapsed_ticks
                 self.timestamp.measure_tick = (int(self.timestamp.measure), (self.timestamp.measure - int(self.timestamp.measure)) * self.ts_numerator * (4/self.ts_denominator) * self.ticks_per_beat)
                 self.timestamp.beat_tick = (int(self.timestamp.beat), (self.timestamp.beat - int(self.timestamp.beat)) * self.ticks_per_beat)
-            
-                self.timestamp.timecode = hymisc.Timecode(self.ticks_per_beat, None, None, self.elapsed_ticks)
                 
                 self.timestamp.tempo = self.tempo
                 self.timestamp.ts_numerator = self.ts_numerator
@@ -295,8 +295,7 @@ class MidiParser:
         self.push_timestamp()
         
         for ts in self.song.sequence:
-            ts.timecode.measure_map = self.song.measure_map
-            ts.timecode.tempo_map = self.song.tempo_map
+            ts.timecode = hymisc.Timecode(ts.tick, self.song)
         
         self.song.check_activations()
         return self.song
@@ -646,7 +645,7 @@ class ChartParser:
             timestamp.tick = tick
             
             tt = self.tick_timings(tick)
-            timestamp.timecode = hymisc.Timecode(self.resolution, self.song.measure_map, self.song.tempo_map, tick)
+            timestamp.timecode = hymisc.Timecode(tick, self.song)
             
             timestamp.flag_solo = solo_on
             

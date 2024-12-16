@@ -42,14 +42,14 @@ class TestScoring(unittest.TestCase):
         
         self.assertEqual(path.optimal(), soln.optimal())
         
-    # def test_missed_injections(self):
-        # self._test_scoring("Hail The Sun - Missed Injections")
+    def test_missed_injections(self):
+        self._test_scoring("Hail The Sun - Missed Injections")
         
-    # def test_entertain_me(self):
-      # self._test_scoring("Tigran Hamasyan - Entertain Me [tomato]")
+    def test_entertain_me(self):
+      self._test_scoring("Tigran Hamasyan - Entertain Me [tomato]")
         
-    # def test_think_dirty_out_loud(self):
-      # self._test_scoring("A Lot Like Birds - Think Dirty out Loud")
+    def test_think_dirty_out_loud(self):
+      self._test_scoring("A Lot Like Birds - Think Dirty out Loud")
         
     # def test_basescore_normal(self):
         # self._test_scoring("Test - Base Score Normal") 
