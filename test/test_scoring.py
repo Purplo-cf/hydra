@@ -6,6 +6,7 @@ import hydra.hypath as hypath
 import hydra.hyutil as hyutil
 import hydra.hymisc as hymisc
 
+
 class TestScoring(unittest.TestCase):
     
     def get_testchart_or_skip(self, name):

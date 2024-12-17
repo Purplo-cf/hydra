@@ -59,8 +59,6 @@ def run_chart(filepath):
     then uses that to create a ScoreGraph, then
     feeds that into a GraphPather.
     
-    To do: replace HydraRecord.from_graph with something in GraphPather
-    
     """
     if filepath.endswith(".mid"):
         song = hysong.MidiParser().parsefile(filepath)
@@ -72,6 +70,6 @@ def run_chart(filepath):
     graph = hypath.ScoreGraph(song)
     
     pather = hypath.GraphPather()
-    pather.run(graph)
+    pather.read(graph)
     
-    return hyrecord.HydraRecord.from_graph(song, pather)
+    return pather.record

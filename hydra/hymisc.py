@@ -1,6 +1,18 @@
 from functools import total_ordering
 
 
+"""Semantic version number for Hydra.
+    
+Major version update: Incompatible changes or big milestones.
+Minor version update: Changes that are expected to affect paths/scores.
+Patch version update: UI or other cosmetic changes.
+
+Records with an old major or minor version will be considered stale.
+
+"""
+HYDRA_VERSION = (0,0,1)
+
+
 class ChartFileError(Exception):
     """Just a custom error for a chart file that doesn't work."""
     pass

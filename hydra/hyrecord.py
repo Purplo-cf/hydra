@@ -1,91 +1,38 @@
 import json
 
-# The end result of Hydra processing: Each unique chart can have 1 HydraRecord per combination of difficulty, norm/pro, and 2x bass.
+from . import hymisc
+
+
 class HydraRecord:
+    """A "printout" representing one analyzed chart.
     
-    def __init__(self):
+    Each unique chart file can have 1 unique HydraRecord per combination
+    of difficulty, pro/non-pro, and 2x/1x bass.
+    
+    Multiple paths for a given chart are grouped within the same hyrecord.
+    
+    A hyrecord stores the version of Hydra that created it.
+    
+    """
+    def __init__(self):   
+        # Made by this version of Hydra.
+        self.hyversion = hymisc.HYDRA_VERSION
         
-        self.version = None
+        # Hash of the chart file. Not comparable to other apps' song hashes.
+        self.hyhash = None
         
-        # Parameters for this record - only 1 HydraRecord for each unique combination of these
-        self.songid = None
+        # Some output-only metadata for convenience if digging through the json
+        self.ref_songname = None
+        self.ref_artistname = None
+        
+        # Chart params.
         self.difficulty = None
         self.prodrums = None
         self.bass2x = None
         
-        # Analysis results
-        self.notecount = None
-        self.solos = []
-        #self.multsqueezes = []
+        # Path results.
         self.paths = []
-       
-    @staticmethod
-    def from_graph(song, pather):
-        record = HydraRecord()
-        
-        record.notecount = song.note_count
     
-        for graphpath in pather.paths:
-            for act in graphpath.record.activations:
-                if act.frontend:
-                    act.frontend.chord = HydraRecordChord.from_chord(act.frontend.chord)
-                for be in act.backends:
-                    be.chord = HydraRecordChord.from_chord(be.chord)
-            
-            graphpath.record.score_total = graphpath.record.optimal()
-            
-            record.paths.append(graphpath.record)
-    
-        return record
-    
-    @staticmethod
-    def from_hydra(song, optimizer):
-        record = HydraRecord()
-        
-        # to do: version
-        
-        # to do: songid
-        # to do: difficulty
-        # to do: prodrums
-        # to do: bass2x
-        
-        record.notecount = song.note_count
-        # to do: solos
-        for msq in optimizer.paths[0].multiplier_squeezes:
-            multsqueeze = HydraRecordMultSqueeze()
-            
-            multsqueeze.multiplier = msq.multiplier + 1
-            multsqueeze.chord = HydraRecordChord.from_chord(msq.chord)
-            multsqueeze.squeezecount = msq.squeeze_count
-            multsqueeze.points = msq.extrascore
-            
-            record.multsqueezes.append(multsqueeze)
-            
-        for p in optimizer.paths:
-            path = HydraRecordPath()
-        
-            for a in p.activations:
-                activation = HydraRecordActivation()
-                
-                activation.skips = a.skips
-                activation.measure = round(a.measure, 2)
-                activation.chord = HydraRecordChord.from_chord(a.chord)
-                activation.sp_meter = round(a.sp * 4)
-                
-                path.activations.append(activation)
-                
-            # to do: avgmultiplier
-            path.score_sp = p.spscore + sum([s.extrascore for s in p.activation_squeezes]) + sum([s.extrascore for s in p.backend_squeezes]) 
-
-            record.paths.append(path)
-                
-        record.score_base = optimizer.paths[0].basescore + sum([s.extrascore for s in optimizer.paths[0].multiplier_squeezes])
-        record.score_combo = 0
-        record.score_accents = optimizer.paths[0].basedynamics
-        record.score_ghosts = 0
-        
-        return record
-        
     @staticmethod
     def from_dict(r_dict):
         record = HydraRecord()
@@ -164,6 +111,7 @@ class HydraRecordPath:
         self.activations = []
         self.multsqueezes = []
         self.avgmultiplier = None
+        self.notecount = 0
         
         self.score_base = 0      # Sum of base note values (50 or 65) ("Notes" in CH)
         self.score_combo = 0     # Additional points from 2x/3x/4x combo multiplier ("Combo Bonus" in CH)
@@ -172,6 +120,8 @@ class HydraRecordPath:
         self.score_accents = 0  # "Accent Notes" in CH
         self.score_ghosts = 0  # "Ghost Notes" in CH
 
+        # Optimal value (just the sum of the others) for convenience if digging through the json
+        self.ref_optimal = 0
         
     # There's multiple ways to chop up scoring by source, but this way mirrors the CH score screen.
     def optimal(self):

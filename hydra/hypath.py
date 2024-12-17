@@ -31,9 +31,12 @@ class ScoreGraph:
     through it is a valid path for the song. However, the graph contains
     all the info needed to go from start to finish while tracking sp, in
     order to explore valid paths through the song.
+    
     """
     def __init__(self, song):
         """Depends on hysong.Song, for all intents and purposes"""
+        self.songhash = song.songhash
+        
         start_time = song.start_time()
         self.base_track_head = ScoreGraphNode(start_time, False)
         self.sp_track_head = ScoreGraphNode(start_time, True)
@@ -382,75 +385,62 @@ class ScoreGraphEdge:
         return f" --> {self.dest.name()}, frontend = {self.frontend}"
     
     
-
-
 class GraphPather:
+    """Responsible for creating multiple paths and for creating hyrecords.
     
+    Reads ScoreGraphs; stores a hyrecord for the latest graph that was read.
+    
+    """
     def __init__(self):
-        self.paths = []
+        self.record = hyrecord.HydraRecord()
         
-    def run(self, graph):
-         
-        self.paths = [GraphPath()]
-        self.paths[0].currentnode = graph.start
+    def read(self, graph):
+        paths = [GraphPath()]
+        paths[0].currentnode = graph.start
         
-        while any([not p.is_complete() for p in self.paths]):
-            
-            
-            #print("=========\nNew round of updates.\n============")
-            # Remove SP paths that ran out (they've spawned a deactivation path already)
-            oldlen = len(self.paths)
-            
-            #for p in self.paths:
-            #    print(f"\tPath removal test: p.currentnode.is_sp = {p.currentnode.is_sp}, p.currentnode.timecode = {p.currentnode.timecode}, p.sp_end_time = {p.sp_end_time}")
-            
-            self.paths = [p for p in self.paths if not (p.currentnode.is_sp and p.currentnode.timecode == p.sp_end_time)]
-            #print(f"Removed {oldlen - len(self.paths)} paths.")
-            
+        while any([not p.is_complete() for p in paths]):
             # Advance paths
-            for p in self.paths:
+            for p in paths:
                 p.advance()
                     
-            # Proliferate paths (activate or deactivate)
+            # Branch paths if possible (activate or deactivate)
             new_paths = []
-            for p in self.paths:
-                branch = p.branch()
-                if branch != None:
-                    new_paths.append(branch)
+            terminated_paths = []
+            for p in paths:
+                terminated, branchpath = p.branch()
+                if terminated:
+                    terminated_paths.append(p)
+                if branchpath:
+                    new_paths.append(branchpath)
                     
-            self.paths += new_paths
+            # Update the path list with branching results
+            paths = [p for p in paths if p not in terminated_paths] + new_paths
             
-            # Cull paths (any that are strictly worse)
+            # Pruning: removing paths that are strictly worse.
+            # Customization of this rule, coming soon.
+            # Also maybe something better than this n^2 thing.
+            paths = [p for p in paths if not any([p.strictly_worse(other) for other in paths])]
+
+        # Order the completed paths by score
+        paths.sort(key=lambda p: p.record.optimal(), reverse=True)
+    
+        # Paths already built their HydraRecordPaths; add them to our hyrecord
+        for path in paths:
+            # Fix chords - to do: Fix it at the source
+            for act in path.record.activations:
+                if act.frontend:
+                    act.frontend.chord = hyrecord.HydraRecordChord.from_chord(act.frontend.chord)
+                for be in act.backends:
+                    be.chord = hyrecord.HydraRecordChord.from_chord(be.chord)
             
+            # Save optimal for convenience (it's just the sum of the other scores)
+            path.record.ref_optimal = path.record.optimal()
             
-            self.prevpaths = self.paths
-            self.paths = [p for p in self.paths if not any([p.strictly_worse(other) for other in self.paths])]
-            
-            # for removedpath in [p for p in self.prevpaths if p not in self.paths]:
-                # if len(removedpath.record.activations) >= 3 and removedpath.record.activations[0].timecode.measures()[0] == 27 and removedpath.record.activations[1].timecode.measures()[0] == 47 and removedpath.record.activations[2].timecode.measures()[0] == 79:
-                    # print("Target path removed:")
-                    # for act in removedpath.record.activations:
-                        # print(act)
-                        # print(f"\tBackends:")
-                        # if len(act.backends) == 0:
-                            # print("\t\tNone")
-                        # for be in act.backends:
-                            # print(f'\t\t({be.timecode.measurestr()}, {be.chord}, {be.offset_ms}ms)')
-                            
-                        
-            
-        self.paths.sort(key=lambda p: p.record.optimal(), reverse=True)
-        
-        # print(f"\nFound {len(self.paths)} paths.\n")
-        # for act in self.paths[0].record.activations:
-            # print(act)
-            # print(f"\tBackends:")
-            # if len(act.backends) == 0:
-                # print("\t\tNone")
-            # for be in act.backends:
-                # print(f'\t\t({be.timecode.measurestr()}, {be.chord}, {be.offset_ms}ms)')
-        
-            
+            self.record.paths.append(path.record)
+
+        # Fill out more fields on hyrecord
+        self.record.hyhash = graph.songhash
+
 class GraphPath:
     """Quick early note:
     
@@ -472,7 +462,7 @@ class GraphPath:
         self.sp_end_time = None
     
         self.latest_sp_time = None
-        
+
     # Returns True if other has a conclusively better score, which requires both paths to be at the same timecode and same sp track.
     def strictly_worse(self, other):
         # Same time requirement
@@ -523,6 +513,9 @@ class GraphPath:
             self.record.score_solo += adv_edge.soloscore
             self.record.score_accents += adv_edge.accentscore
             self.record.score_ghosts += adv_edge.ghostscore
+            
+            self.record.notecount += adv_edge.notecount
+            
             #print(f"\tGoing to {adv_edge.dest.timecode.measurestr()}.")
             # Applying SP on this edge
             if self.currentnode.is_sp:
@@ -558,23 +551,39 @@ class GraphPath:
    
     # Use the edge that changes SP state (an activation or deactivation).
     # Returns a new path copy where the branch was taken.
-    def branch(self):        
+    def branch(self):
+        """Create a new path if possible, to represent changing from SP to 
+        non-SP or vice versa.
+        
+        For example, if this path is at an activation point, then the new
+        branch path represents activating here, while the existing path
+        will continue to represent inactive SP.
+        
+        returns terminated, new_path
+        
+        terminated: True when the new branch path is the only valid option,
+        which is usually the case when SP deactivates.
+        
+        new_path: A new path which is like a clone of this path except it has
+        taken the branch edge here.
+        
+        """
         #print("Path branching:")
         if self.is_complete():
             #print("\tOops, I was already done.")
-            return
+            return False, None
 
         #print(f"\tI'm at {self.currentnode.timecode.measurestr()} and SP is {'' if self.currentnode.is_sp else 'in'}active...")
         
         br_edge = self.currentnode.branch_edge
         if not br_edge:
             #print("\tOops, branch edge not found.")
-            return
+            return False, None
             
         # Check conditions for activation
         if br_edge.dest.is_sp and (self.sp < 2 or self.sp == 2 and self.latest_sp_time.ticks + 2*br_edge.activation_fill_length_ticks > self.currentnode.timecode.ticks):
             #print(f"\tActivation conditions not met: sp = {self.sp}")
-            return
+            return False, None
         
         # Check conditions for deactivation
         sq_out = False
@@ -585,7 +594,7 @@ class GraphPath:
                 #print("\tSqOut conditions met")
             else:
                 #print(f"\tDeactivation conditions not met: my sp end time is {self.sp_end_time.measurestr()}")
-                return
+                return False, None
         
         new_path = GraphPath()
         new_path.record = copy.deepcopy(self.record)
@@ -650,7 +659,8 @@ class GraphPath:
                     self.sp_end_time = br_edge.sqinout_indicator_time
                     self.buffered_sqin_sp = br_edge.sqinout_amount
         
-        return new_path
+        terminated = self.currentnode.is_sp and self.currentnode.timecode == self.sp_end_time
+        return terminated, new_path
             
     def is_complete(self):
         return self.currentnode == None

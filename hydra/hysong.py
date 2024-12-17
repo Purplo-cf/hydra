@@ -1,5 +1,7 @@
 import mido
 import re
+import hashlib
+
 from . import hynote
 from . import hymisc
 
@@ -48,6 +50,8 @@ class SongTimestamp:
 class Song:
     
     def __init__(self):
+        self.songhash = None
+        
         self.sequence = []
         
         self.note_count = 0
@@ -289,6 +293,9 @@ class MidiParser:
                 
         self.song = Song()
         self.song.tick_resolution = self.ticks_per_beat
+        
+        with open(filename, 'rb') as f:
+            self.song.songhash = hashlib.file_digest(f, "md5").hexdigest()
         
         for m in mid:
             self.read_message(m)
@@ -615,6 +622,9 @@ class ChartParser:
             
     def parsefile(self, filename):
         self.song = Song()
+        
+        with open(filename, 'rb') as chartbin:
+            self.song.songhash = hashlib.file_digest(chartbin, "md5").hexdigest()
         
         with open(filename, mode='r') as charttxt:
             self.load_sections(charttxt)
