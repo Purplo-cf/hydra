@@ -21,6 +21,7 @@ class Timecode:
         
         # Derived values
         self.measure_beats_ticks = [0, 0, 0]
+        self.measure_percent = 0.0
         self.ms = 0.0
         
         self._init_mbt(song)
@@ -59,6 +60,12 @@ class Timecode:
             
             
         ticks_to_advance = self.ticks - at_tick
+        
+        self.measure_beats_ticks[0] += ticks_to_advance // current_ticks_per_m
+        ticks_to_advance %= current_ticks_per_m
+        
+        # Alternate remainder: percentage
+        self.measure_percent = ticks_to_advance / current_ticks_per_m
         
         # Remainder: beats, then ticks
         self.measure_beats_ticks[1] = ticks_to_advance // song.tick_resolution
@@ -109,42 +116,46 @@ class Timecode:
         return str(self.ticks)
     
     def measurestr(self):
-        return f"m{'.'.join(self.measure_beats_ticks)}"
+        strs = [str(v) for v in self.measure_beats_ticks]
+        return f"m{'.'.join(strs)}"
     
-    # Non-mutating add
-    def plusmeasure(self, wholemeasures_to_add, song):
-        resolved_ticks = self.ticks
-        current_ticks_per_measure = None
-        added_ticks = 0
-        added_measures = 0
-        rollover_ticks = 0
-        # On the one hand this looks kinda crazy,
-        # on the other hand converting to/from measures really is a pain
-        for tick_key in sorted(song.measure_map.keys()):
-            if tick_key <= resolved_ticks:
-                current_ticks_per_measure = song.measure_map[tick_key]
-                continue
-                
-            available_ticks = tick_key - resolved_ticks + rollover_ticks
-            
-            # TO DO: rollover ticks are bugged, they would not be counted as being in their old time signature :(
-            # possible alternate algorithm: round down the partial measure, do the main alg to advance the desired measures,
-            # then add back the partial measure.
-            # current_ticks_per_measure is highly divisible because it's 4, 3.5, 3.75, etc. * the resolution.
-            
-            while available_ticks >= current_ticks_per_measure and added_measures < wholemeasures_to_add:
-                available_ticks -= current_ticks_per_measure
-                added_ticks += current_ticks_per_measure
-                added_measures += 1
-            
-            if added_measures == wholemeasures_to_add:
-                break
-            
-            rollover_ticks = available_ticks
-            resolved_ticks = tick_key
-            current_ticks_per_measure = song.measure_map[tick_key]
-            
-        # One last update with the (unlimited) time after the last meter change
-        added_ticks += current_ticks_per_measure * (wholemeasures_to_add - added_measures)
+    def plusmeasure(self, add_measures, song):
+        """Returns a new Timecode offset by the given number of measures.
         
-        return Timecode(self.ticks + added_ticks, song)
+        Partial measures will work by percentage rather than by
+        number of beats or ticks. For example, "22 and a quarter measure"
+        plus 2 measures will always equal "24 and a quarter measure" no
+        matter the time signature.
+        
+        """
+        t = self.measure_beats_ticks[0] + self.measure_percent + add_measures
+        assert(t >= 0)
+        target_m = int(t)
+        targetpartial = t % 1
+        
+        keys = sorted(song.measure_map.keys())
+        assert(keys[0] == 0)
+        ticks_per_m = song.measure_map[0]
+        ticks_to_advance = 0
+        counted_m = 0
+        countedticks = 0
+        
+        for tick_key in keys[1:]:
+            available_ticks = tick_key - countedticks
+        
+            while available_ticks >= ticks_per_m and counted_m < target_m:
+                counted_m += 1
+                countedticks += ticks_per_m
+                available_ticks -= ticks_per_m
+        
+            if counted_m == target_m:
+                break
+        
+            ticks_per_m = song.measure_map[tick_key]
+        
+        while counted_m < target_m:
+            counted_m += 1
+            countedticks += ticks_per_m
+            
+        partial = int(targetpartial * ticks_per_m)
+        return Timecode(countedticks + partial, song)
