@@ -1,6 +1,11 @@
 from functools import total_ordering
 
 
+class ChartFileError(Exception):
+    """Just a custom error for a chart file that doesn't work."""
+    pass
+    
+
 @total_ordering
 class Timecode:
     """A point in time in a song, in multiple representations.

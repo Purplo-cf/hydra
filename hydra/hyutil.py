@@ -1,54 +1,73 @@
 import os
 import json
+
 from . import hypath
 from . import hyrecord
 from . import hysong
+from . import hymisc
 
-class ChartFileError(Exception):
-    pass
     
-# to do: look for nearby song info and pull metadata 
-def discover_charts(root, map_names=True):
-    charts = []
+def discover_charts(rootname):
+    """Returns a list of tuples (notesfile, inifile).
     
+    Looks for charts in the given root folder.
+    
+    """
     try:
-        unexplored = [os.sep.join([root, filename]) for filename in os.listdir(root)]
+        rootdir = os.listdir(rootname)
     except FileNotFoundError:
         return []
+        
+    unexplored = [os.sep.join([rootname, name]) for name in rootdir]
     
-    while len(unexplored) > 0:
+    found_by_dirname = {}
+    while unexplored:
         f = unexplored.pop()
         
         if os.path.isfile(f):
             # Handle a file
             if f.endswith(".mid") or f.endswith(".chart"):
-                charts.append(f)
+                try:
+                    found_by_dirname[os.path.dirname(f)][0] = f
+                except KeyError:
+                    found_by_dirname[os.path.dirname(f)] = [f, None]
+            elif f.endswith(".ini"):
+                try:
+                    found_by_dirname[os.path.dirname(f)][1] = f
+                except KeyError:
+                    found_by_dirname[os.path.dirname(f)] = [None, f]
         else:
             # Handle a folder
-            unexplored += [os.sep.join([f, filename]) for filename in os.listdir(f)]
+            unexplored += [os.sep.join([f, name]) for name in os.listdir(f)]
             
-    return {c.split(os.sep)[-2]: c for c in charts} if map_names else charts
+    return [tuple(files) for files in found_by_dirname.values() if all(files)]
 
-def load_records(filepath, map_names=True):
+def load_records(filepath):
+    """Loads hyrecords from a json file."""
     records = []
     
     with open(filepath, mode='r', encoding='utf-8') as recordfile:
-        album = json.load(recordfile)
-        records = [hyrecord.HydraRecord.from_dict(r_raw) for r_raw in album["records"]]
+        records_json = json.load(recordfile)['records']
+        records = [hyrecord.HydraRecord.from_dict(r) for r in records_json]
             
-    if not map_names:
-        return records
-    
-    unique_ids = set([r.songid for r in records])
-    return {id: set([r for r in records if r.songid == id]) for id in unique_ids}
+    return records
     
 def run_chart(filepath):
+    """Current procedure to go from chart file to hyrecord.
+    
+    First parses either chart format to a Song object,
+    then uses that to create a ScoreGraph, then
+    feeds that into a GraphPather.
+    
+    To do: replace HydraRecord.from_graph with something in GraphPather
+    
+    """
     if filepath.endswith(".mid"):
         song = hysong.MidiParser().parsefile(filepath)
     elif filepath.endswith(".chart"):
         song = hysong.ChartParser().parsefile(filepath)
     else:
-        raise ChartFileError("Unexpected chart filetype")
+        raise hymisc.ChartFileError("Unexpected chart filetype")
     
     graph = hypath.ScoreGraph(song)
     
@@ -56,8 +75,3 @@ def run_chart(filepath):
     pather.run(graph)
     
     return hyrecord.HydraRecord.from_graph(song, pather)
-    
-    #optimizer = hypath.Optimizer()
-    #optimizer.run(song)
-    
-    #return hyrecord.HydraRecord.from_hydra(song, optimizer)
