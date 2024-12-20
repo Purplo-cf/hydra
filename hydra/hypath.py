@@ -422,7 +422,7 @@ class GraphPather:
             paths = [p for p in paths if not any([p.strictly_worse(other) for other in paths])]
 
         # Order the completed paths by score
-        paths.sort(key=lambda p: p.record.optimal(), reverse=True)
+        paths.sort(key=lambda p: p.record.totalscore(), reverse=True)
     
         # Paths already built their HydraRecordPaths; add them to our hyrecord
         for path in paths:
@@ -434,7 +434,7 @@ class GraphPather:
                     be.chord = hyrecord.HydraRecordChord.from_chord(be.chord)
             
             # Save optimal for convenience (it's just the sum of the other scores)
-            path.record.ref_optimal = path.record.optimal()
+            path.record.ref_optimal = path.record.totalscore()
             
             self.record.paths.append(path.record)
 
@@ -484,13 +484,7 @@ class GraphPath:
         self_sp_value = (self.sp_end_time if self_sp_active else self.sp) if self.currentnode else 0
         other_sp_value = (other.sp_end_time if other_sp_active else other.sp) if other.currentnode else 0
         
-        # if self.record.optimal() < other.record.optimal() and self.sp <= other.sp:
-            # print(f"{self.currentnode.timecode.measurestr()}: About to remove path:")
-            # for a in self.record.activations:
-                # print(f"\t{a.skips}\t{a.timecode.measurestr()}")
-            # print(f"\t{self.record.optimal()}/{other.record.optimal()}, {self.sp}/{other.sp} ({self.record.optimal() < other.record.optimal() and self.sp <= other.sp})")
-        
-        return self.record.optimal() < other.record.optimal() and self_sp_value <= other_sp_value
+        return self.record.totalscore() < other.record.totalscore() and self_sp_value <= other_sp_value
         
     # Develop along the edge that leads farther into the song.
     # Always moves a path closer to being complete, unless it's already complete.
@@ -500,10 +494,6 @@ class GraphPath:
         if self.is_complete():
             #print("\tOops, I was already done.")
             return
-        
-        #print(f"\tI'm at {self.currentnode.timecode.measurestr()} and SP is {'' if self.currentnode.is_sp else 'in'}active...")
-        
-
         
         adv_edge = self.currentnode.adv_edge
         if adv_edge:

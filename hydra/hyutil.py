@@ -53,7 +53,7 @@ def load_records(filepath):
     return records
     
 def run_chart(filepath):
-    """Current procedure to go from chart file to hyrecord.
+    """Current chain to go from chart file to hyrecord.
     
     First parses either chart format to a Song object,
     then uses that to create a ScoreGraph, then

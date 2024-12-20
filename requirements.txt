@@ -1,2 +1,3 @@
+dearpygui==2.0.0
 git+https://github.com/DragonDelgar/mido.git#egg=mido
 packaging==24.2

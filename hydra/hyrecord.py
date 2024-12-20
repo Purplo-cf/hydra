@@ -78,32 +78,15 @@ class HydraRecord:
                 
             path.avgmultiplier = path_dict['avgmultiplier']
             
-            for scoreattr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+            for scoreattr in ['score_base', 'score_combo', 'score_sp',
+                              'score_solo', 'score_accents', 'score_ghosts']:
                 setattr(path, scoreattr, path_dict[scoreattr] if scoreattr in path_dict else 0)
                 
             record.paths.append(path)
                     
         return record
 
-        
-    def solobonus(self): # Sum of solo bonuses ("Solo Bonus" in CH)
-        return sum([s.bonus() for s in self.solos])
-
-    def json(self):
-        return json.dumps(self, default=lambda r: r.__dict__, sort_keys=True, indent=4)
-        
-
-    def optimal(self):
-        return self.paths[0].optimal()
-
-class HydraRecordSolo:
     
-    def __init__(self):
-        self.notecount = None
-    
-    def bonus(self):
-        return 100 * self.notecount
-        
 class HydraRecordPath:
     
     def __init__(self):
@@ -113,19 +96,20 @@ class HydraRecordPath:
         self.avgmultiplier = None
         self.notecount = 0
         
-        self.score_base = 0      # Sum of base note values (50 or 65) ("Notes" in CH)
-        self.score_combo = 0     # Additional points from 2x/3x/4x combo multiplier ("Combo Bonus" in CH)
-        self.score_sp = 0 # "Star Power" in CH
+        # Score breakdown categories from Clone Hero
+        self.score_base = 0
+        self.score_combo = 0
+        self.score_sp = 0
         self.score_solo = 0 
-        self.score_accents = 0  # "Accent Notes" in CH
-        self.score_ghosts = 0  # "Ghost Notes" in CH
+        self.score_accents = 0
+        self.score_ghosts = 0
 
-        # Optimal value (just the sum of the others) for convenience if digging through the json
+        # Redundant total score for convenience if digging through the json
         self.ref_optimal = 0
-        
-    # There's multiple ways to chop up scoring by source, but this way mirrors the CH score screen.
-    def optimal(self):
-        return self.score_base + self.score_combo + self.score_sp + self.score_solo + self.score_accents + self.score_ghosts
+       
+    def totalscore(self):
+        return (self.score_base + self.score_combo + self.score_sp
+                + self.score_solo + self.score_accents + self.score_ghosts)
 
 class HydraRecordActivation:
     

@@ -6,3 +6,4 @@ hydra/__pycache__
 
 # Tests pycache.
 test/__pycache__
+hyapp.ini

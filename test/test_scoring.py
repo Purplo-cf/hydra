@@ -67,7 +67,7 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(path.score_accents, soln.score_accents)
         self.assertEqual(path.score_ghosts, soln.score_ghosts)
         
-        self.assertEqual(path.optimal(), soln.optimal())
+        self.assertEqual(path.totalscore(), soln.totalscore())
         
     def test_missed_injections(self):
         self._test_scoring("Missed Injections")
