@@ -30,7 +30,7 @@ class TestScoring(unittest.TestCase):
 
     def setUp(self):
         # Get the test charts
-        chartsroot = os.sep.join(["..","_charts","test_scoring"])
+        chartsroot = os.sep.join(["..","test","input","test_scoring"])
         charts = hyutil.discover_charts(chartsroot)        
         
         self.name_to_notesfile = {}
@@ -77,8 +77,3 @@ class TestScoring(unittest.TestCase):
         
     def test_think_dirty_out_loud(self):
       self._test_scoring("Think Dirty out Loud")
-        
-    # def test_basescore_normal(self):
-        # self._test_scoring("Test - Base Score Normal") 
-        
-        
