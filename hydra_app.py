@@ -12,7 +12,7 @@ class HyAppState:
     def __init__(self):
         self.hyroot = pathlib.Path(__file__).resolve().parent
         self.cfgpath = str(self.hyroot / "hyapp.ini")
-        self.icopath = str(self.hyroot / "_notes" / "Icon.ico")
+        self.icopath = str(self.hyroot / "resource" / "Icon.ico")
         
         # Load config
         try:
