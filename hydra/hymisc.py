@@ -1,4 +1,5 @@
 from functools import total_ordering
+import pathlib
 
 
 """Semantic version number for Hydra.
@@ -11,6 +12,14 @@ Records with an old major or minor version will be considered stale.
 
 """
 HYDRA_VERSION = (0,0,1)
+
+
+"""Static paths and files"""
+
+ROOTPATH = pathlib.Path(__file__).resolve().parent.parent
+INIPATH = ROOTPATH / "hyapp.ini"
+DBPATH = ROOTPATH / "hydra.db"
+ICOPATH = ROOTPATH / "resource" / "Icon.ico"
 
 
 class ChartFileError(Exception):

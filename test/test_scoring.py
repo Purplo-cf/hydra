@@ -34,7 +34,7 @@ class TestScoring(unittest.TestCase):
         charts = hyutil.discover_charts(chartsroot)        
         
         self.name_to_notesfile = {}
-        for notesfile, inifile in charts:
+        for notesfile, inifile, path in charts:
             config = configparser.ConfigParser()
             config.read(inifile)
             
