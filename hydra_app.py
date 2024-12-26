@@ -98,8 +98,8 @@ class HyAppState:
     def __init__(self):
         self.usettings = HyAppUserSettings()
         self.table_viewpage = 0
-        
         self.librarysize = 0
+        self.search = None
     
     def pagecount(self):
         return self.librarysize // self.TABLE_ROWCOUNT
@@ -158,7 +158,9 @@ def on_scan_charts():
     refresh_tableview()
 
 def on_search_text(sender, app_data):
-    print(f"Library search updated: {sender}, {app_data}")
+    appstate.search = None if app_data == "" else app_data
+    appstate.table_viewpage = 0
+    refresh_tableview()
 
 def on_library_rowclick(sender, app_data):
     print(f"Library song clicked: {sender}, {app_data}")
@@ -246,20 +248,21 @@ def refresh_tableview():
     Other info like the size of the library is already known and doesn't need
     the db to be accessed.
     
-    """
-    if appstate.librarysize > 0:
-        dpg.hide_item("libraryempty")    
-        dpg.show_item("librarypopulated")
-    else:
-        dpg.hide_item("librarypopulated")        
-        dpg.show_item("libraryempty")
-        
+    """    
     cxn = sqlite3.connect(hymisc.DBPATH)
     cur = cxn.cursor()
 
     try:
         colnames = (("name", "Name"), ("artist", "Artist"), ("charter", "Charter"), ("folder", "Folder"))
-        entries = cur.execute(f"SELECT {','.join([t[0] for t in colnames])} FROM charts ORDER BY name LIMIT {appstate.TABLE_ROWCOUNT} OFFSET {appstate.table_viewpage * appstate.TABLE_ROWCOUNT}").fetchall()
+        if appstate.search:
+            searchparam = f"%{appstate.search}%"
+            where = "WHERE name LIKE ? OR artist LIKE ?"
+            fullcount = cur.execute(f"SELECT COUNT(*) FROM charts {where}", (searchparam, searchparam)).fetchone()[0]
+            entries = cur.execute(f"SELECT {','.join([t[0] for t in colnames])} FROM charts {where} ORDER BY name LIMIT {appstate.TABLE_ROWCOUNT} OFFSET {appstate.table_viewpage * appstate.TABLE_ROWCOUNT}", (searchparam,searchparam)).fetchall()
+        else:
+            fullcount = appstate.librarysize
+            entries = cur.execute(f"SELECT {','.join([t[0] for t in colnames])} FROM charts ORDER BY name LIMIT {appstate.TABLE_ROWCOUNT} OFFSET {appstate.table_viewpage * appstate.TABLE_ROWCOUNT}").fetchall()
+        cxn.close()
     except sqlite3.OperationalError:
         cxn.close()
         return
@@ -282,12 +285,21 @@ def refresh_tableview():
         # Fill record-based cell
         dpg.configure_item(f"table[{r}, {len(colnames)}]", label="Coming Soon")
         
-    dpg.set_value("librarypagelabel", f"{appstate.table_viewpage + 1}/{appstate.pagecount() + 1}")
+        
+    lastpage = fullcount//appstate.TABLE_ROWCOUNT
+    dpg.set_value("librarypagelabel", f"{appstate.table_viewpage + 1}/{lastpage + 1}")
         
     dpg.configure_item("pageleftbutton", enabled=appstate.table_viewpage > 0)
-    dpg.configure_item("pagerightbutton", enabled=appstate.table_viewpage < appstate.pagecount())
+    dpg.configure_item("pagerightbutton", enabled=appstate.table_viewpage < lastpage)
     
-    cxn.close()
+    if appstate.librarysize > 0:
+        dpg.hide_item("libraryempty")    
+        dpg.show_item("librarypopulated")
+    else:
+        dpg.hide_item("librarypopulated")        
+        dpg.show_item("libraryempty")        
+        
+    
 
 def refresh_librarytitle():
     chartcount = appstate.librarysize    
