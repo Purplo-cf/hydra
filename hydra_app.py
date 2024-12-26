@@ -92,10 +92,18 @@ class HyAppUserSettings:
 
 class HyAppState:
     """Manages Hydra's state."""
+    TABLE_ROWCOUNT = 20
+    TABLE_COLCOUNT = 5
+    
     def __init__(self):
         self.usettings = HyAppUserSettings()
+        self.table_viewpage = 0
+        
+        self.librarysize = 0
     
-    
+    def pagecount(self):
+        return self.librarysize // self.TABLE_ROWCOUNT
+            
 """UI callbacks"""
 
 
@@ -142,8 +150,29 @@ def on_scan_charts():
     dpg.hide_item("scanprogress_done")
     
     appstate.usettings.lastscanfolder = appstate.usettings.chartfolder
+    
+    cache_librarysize()
+    
     refresh_librarytitle()
     refresh_chartfolder()
+    refresh_tableview()
+
+def on_search_text(sender, app_data):
+    print(f"Library search updated: {sender}, {app_data}")
+
+def on_library_rowclick(sender, app_data):
+    print(f"Library song clicked: {sender}, {app_data}")
+    for s in all_table_row_selectables():
+        if s != sender:
+            dpg.set_value(s, False)
+
+def on_pageleft(sender, app_data):
+    appstate.table_viewpage = max(appstate.table_viewpage - 1, 0)
+    refresh_tableview()
+   
+def on_pageright(sender, app_data):
+    appstate.table_viewpage = min(appstate.table_viewpage + 1, appstate.pagecount())
+    refresh_tableview()
 
 
 """Progress callbacks (reactions to processing rather than UI interactions)"""
@@ -182,14 +211,17 @@ def view_main():
     dpg.set_primary_window("mainwindow", True)
     
     dpg.configure_item("scanprogress", width=-1, height=-1)
-
+    
+    cache_librarysize()
+    
     refresh_chartfolder()
     refresh_viewdifficulty()
     refresh_viewprodrums()
     refresh_viewbass2x()
     refresh_librarytitle()
-
-
+    refresh_tableview()
+    
+    
 """UI population"""
 
 
@@ -201,7 +233,6 @@ def refresh_chartfolder():
     labeltxt = "Refresh scan" if repeat_scan else "Scan charts"
     dpg.configure_item("scanbutton", enabled=folder != "", label=labeltxt)
     
-    
 def refresh_viewdifficulty():
     dpg.set_value("view_difficulty_combo", appstate.usettings.view_difficulty)
 def refresh_viewprodrums():
@@ -209,22 +240,75 @@ def refresh_viewprodrums():
 def refresh_viewbass2x():
     dpg.set_value("view_bass2x_check", appstate.usettings.view_bass2x)
 
-
-def refresh_librarytitle():
+def refresh_tableview():
+    """Display a particular page of the song library.
+    
+    Other info like the size of the library is already known and doesn't need
+    the db to be accessed.
+    
+    """
+    if appstate.librarysize > 0:
+        dpg.hide_item("libraryempty")    
+        dpg.show_item("librarypopulated")
+    else:
+        dpg.hide_item("librarypopulated")        
+        dpg.show_item("libraryempty")
+        
     cxn = sqlite3.connect(hymisc.DBPATH)
     cur = cxn.cursor()
 
     try:
-        cur.execute("SELECT COUNT(*) FROM charts")
-        chartcount = cur.fetchone()[0]
+        colnames = (("name", "Name"), ("artist", "Artist"), ("charter", "Charter"), ("folder", "Folder"))
+        entries = cur.execute(f"SELECT {','.join([t[0] for t in colnames])} FROM charts ORDER BY name LIMIT {appstate.TABLE_ROWCOUNT} OFFSET {appstate.table_viewpage * appstate.TABLE_ROWCOUNT}").fetchall()
     except sqlite3.OperationalError:
-        chartcount = 0
+        cxn.close()
+        return
+            
+    # Assign library-based header names
+    for i, t in enumerate(colnames):
+        dpg.configure_item(f"table_header{i}", label=t[1])    
+    
+    # Assign record-based header name
+    dpg.configure_item(f"table_header{len(colnames)}", label="Path")
+    
+    for r in range(appstate.TABLE_ROWCOUNT):
+        # Fill library-based cells
+        for c in range(len(colnames)):
+            try:
+                dpg.set_value(f"table[{r}, {c}]", entries[r][c])
+            except IndexError:
+                dpg.set_value(f"table[{r}, {c}]", "-----")
+                
+        # Fill record-based cell
+        dpg.configure_item(f"table[{r}, {len(colnames)}]", label="Coming Soon")
         
-    countstr = "(1 chart)" if chartcount == 1 else f"({chartcount} charts)"
-    dpg.configure_item("librarytitle", label=f"Library {countstr}")
+    dpg.set_value("librarypagelabel", f"{appstate.table_viewpage + 1}/{appstate.pagecount() + 1}")
+        
+    dpg.configure_item("pageleftbutton", enabled=appstate.table_viewpage > 0)
+    dpg.configure_item("pagerightbutton", enabled=appstate.table_viewpage < appstate.pagecount())
     
     cxn.close()
 
+def refresh_librarytitle():
+    chartcount = appstate.librarysize    
+    countstr = "(1 chart)" if chartcount == 1 else f"({chartcount} charts)"
+    dpg.configure_item("librarytitle", label=f"Library {countstr}")
+    
+
+""" Utility"""
+
+def cache_librarysize():
+    cxn = sqlite3.connect(hymisc.DBPATH)
+    cur = cxn.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM charts")
+        appstate.librarysize = cur.fetchone()[0]
+    except sqlite3.OperationalError:
+        appstate.librarysize = 0
+    cxn.close()
+
+def all_table_row_selectables():
+    return [f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]" for r in range(appstate.TABLE_ROWCOUNT)]
 
 """ Main """
 
@@ -240,6 +324,7 @@ if __name__ == '__main__':
             directory_selector=True, show=False, callback=on_chartfolder_selected,
             tag="select_chartfolder", width=700 ,height=400)
 
+    # Main window
     with dpg.window(label="Hydra", tag="mainwindow", show=False) as mainwindow:
         dpg.add_separator(label="Settings")
         dpg.add_text(f"Chart folder: uninitialized", tag="chartfoldertext")
@@ -247,12 +332,45 @@ if __name__ == '__main__':
             dpg.add_button(label="Select folder...", callback=on_select_chartfolder)
             dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan_charts)
         dpg.add_separator(label="Library", tag="librarytitle")
-        with dpg.group(horizontal=True):
-            dpg.add_text("View:")
-            dpg.add_combo(("Expert", "Hard", "Medium", "Easy"), tag="view_difficulty_combo", callback=on_viewdifficulty)
-            dpg.add_checkbox(label="Pro Drums", tag="view_prodrums_check", callback=on_viewprodrums)
-            dpg.add_checkbox(label="2x Bass", tag="view_bass2x_check", callback=on_viewbass2x)
+        
+        with dpg.group(tag="librarypopulated"):
+            dpg.add_spacer(height=2)
+            with dpg.group(horizontal=True, tag="libraryviewcontrols"):
+                dpg.add_text("View:")
+                dpg.add_combo(("Expert", "Hard", "Medium", "Easy"), tag="view_difficulty_combo", width=120, callback=on_viewdifficulty)
+                dpg.add_checkbox(label="Pro Drums", tag="view_prodrums_check", callback=on_viewprodrums)
+                dpg.add_checkbox(label="2x Bass", tag="view_bass2x_check", callback=on_viewbass2x)
+            
+            dpg.add_spacer(height=4, tag="libraryviewspacerA")
+            with dpg.group(horizontal=True, tag="librarysearch"):
+                dpg.add_text("Search:")
+                dpg.add_input_text(callback=on_search_text, width=282)
+            
+            dpg.add_spacer(height=4, tag="libraryviewspacerB")
+            with dpg.table(tag="librarytable"):
+                for i in range(appstate.TABLE_COLCOUNT):
+                    dpg.add_table_column(label=f"table_header{i}", tag=f"table_header{i}")
+                for r in range(appstate.TABLE_ROWCOUNT):
+                    with dpg.table_row(tag=f"table_row{r}"):
+                        for c in range(appstate.TABLE_COLCOUNT - 1):
+                            dpg.add_text(f"table[{r}, {c}]", tag=f"table[{r}, {c}]")
+                            
+                        dpg.add_selectable(tag=f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label=f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", span_columns=True, callback=on_library_rowclick, user_data="Row Click")
+                            
+            dpg.configure_item("table_header0", init_width_or_weight=1)
+            dpg.configure_item("table_header1", init_width_or_weight=.75)
+            dpg.configure_item("table_header2", init_width_or_weight=.5)
+            dpg.configure_item("table_header3", init_width_or_weight=.75)                
+            dpg.configure_item("table_header4", init_width_or_weight=1)
 
+            with dpg.group(horizontal=True, tag="librarytablecontrols"):
+                dpg.add_button(tag="pageleftbutton", arrow=True, direction=dpg.mvDir_Left, callback=on_pageleft)
+                dpg.add_text("0/0", tag= "librarypagelabel")
+                dpg.add_button(tag="pagerightbutton", arrow=True, direction=dpg.mvDir_Right, callback=on_pageright)
+        
+        dpg.add_text("No songs scanned. Set a folder and scan songs to get started!", tag="libraryempty", show=False)
+        
+    # Showable
     with dpg.window(tag="scanprogress", show=False, modal=True, no_title_bar=True, no_close=True, no_resize=True, no_move=True, width=-1, height=-1,pos=(40,40)):
         dpg.add_text("Discovering charts...", tag="scanprogress_discovering")
         dpg.add_text("0 charts found.", tag="scanprogress_chartsfound", show=False)
@@ -260,6 +378,7 @@ if __name__ == '__main__':
         dpg.add_progress_bar(tag="scanprogress_bar", show=False, width=-1)
         dpg.add_text("Done!", tag="scanprogress_done", show=False)
 
+    # Theme
     with dpg.theme() as standard_theme:
         with dpg.theme_component(dpg.mvButton, enabled_state=True):
             dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 100, 100))

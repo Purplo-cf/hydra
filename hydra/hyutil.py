@@ -3,6 +3,7 @@ import json
 import sqlite3
 import hashlib
 import configparser
+import pathlib
 
 from . import hypath
 from . import hyrecord
@@ -24,9 +25,9 @@ def scan_charts(chartfolder,
     cur = cxn.cursor()
     
     # Initialize db
-    chartrow = "(hyhash, name, artist, charter, location)"
-    cur.execute(f"CREATE TABLE IF NOT EXISTS charts{chartrow}")
-    cur.execute("DELETE FROM charts")
+    chartrow = "(hyhash, name, artist, charter, path, folder)"
+    cur.execute("DROP TABLE IF EXISTS charts")
+    cur.execute(f"CREATE TABLE charts{chartrow}")
     
     # Copy info from each ini to the db
     for i, (chartfile, inifile, path) in enumerate(chartfiles):        
@@ -67,9 +68,11 @@ def scan_charts(chartfolder,
         except KeyError:
             charter = "<unknown charter>"
 
+        folder = os.path.relpath(pathlib.Path(path).parent, chartfolder)
+
         # Insert into db
-        rowvalues = (hyhash, name, artist, charter, path)
-        cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?)", rowvalues)
+        rowvalues = (hyhash, name, artist, charter, path, folder)
+        cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
         cb_libraryadded(i+1, len(chartfiles))
     
     cxn.commit()
