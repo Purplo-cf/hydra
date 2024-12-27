@@ -20,7 +20,7 @@ ROOTPATH = pathlib.Path(__file__).resolve().parent.parent
 INIPATH = ROOTPATH / "hyapp.ini"
 DBPATH = ROOTPATH / "hydra.db"
 ICOPATH = ROOTPATH / "resource" / "Icon.ico"
-
+FONTPATH_ANTQ = ROOTPATH / "resource" / "ShipporiAntiqueB1-Regular.ttf"
 
 class ChartFileError(Exception):
     """Just a custom error for a chart file that doesn't work."""

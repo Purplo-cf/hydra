@@ -92,7 +92,7 @@ class HyAppUserSettings:
 
 class HyAppState:
     """Manages Hydra's state."""
-    TABLE_ROWCOUNT = 20
+    TABLE_ROWCOUNT = 15
     TABLE_COLCOUNT = 5
     
     def __init__(self):
@@ -331,11 +331,12 @@ if __name__ == '__main__':
             
     dpg.create_context()
 
-    # item creation - to be put into function(s) later
-    dpg.add_file_dialog(
-            directory_selector=True, show=False, callback=on_chartfolder_selected,
-            tag="select_chartfolder", width=700 ,height=400)
-
+    # Fonts
+    with dpg.font_registry():
+        with dpg.font(hymisc.FONTPATH_ANTQ, 18, tag="MainFont"):
+            dpg.add_font_range_hint(dpg.mvFontRangeHint_Japanese)
+    dpg.bind_font("MainFont")
+    
     # Main window
     with dpg.window(label="Hydra", tag="mainwindow", show=False) as mainwindow:
         dpg.add_separator(label="Settings")
@@ -343,6 +344,7 @@ if __name__ == '__main__':
         with dpg.group(horizontal=True):
             dpg.add_button(label="Select folder...", callback=on_select_chartfolder)
             dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan_charts)
+        dpg.add_spacer(height=2)
         dpg.add_separator(label="Library", tag="librarytitle")
         
         with dpg.group(tag="librarypopulated"):
@@ -353,12 +355,12 @@ if __name__ == '__main__':
                 dpg.add_checkbox(label="Pro Drums", tag="view_prodrums_check", callback=on_viewprodrums)
                 dpg.add_checkbox(label="2x Bass", tag="view_bass2x_check", callback=on_viewbass2x)
             
-            dpg.add_spacer(height=4, tag="libraryviewspacerA")
+            dpg.add_spacer(height=2)
             with dpg.group(horizontal=True, tag="librarysearch"):
                 dpg.add_text("Search:")
                 dpg.add_input_text(callback=on_search_text, width=282)
             
-            dpg.add_spacer(height=4, tag="libraryviewspacerB")
+            dpg.add_spacer(height=2)
             with dpg.table(tag="librarytable"):
                 for i in range(appstate.TABLE_COLCOUNT):
                     dpg.add_table_column(label=f"table_header{i}", tag=f"table_header{i}")
@@ -383,6 +385,10 @@ if __name__ == '__main__':
         dpg.add_text("No songs scanned. Set a folder and scan songs to get started!", tag="libraryempty", show=False)
         
     # Showable
+    dpg.add_file_dialog(
+            directory_selector=True, show=False, callback=on_chartfolder_selected,
+            tag="select_chartfolder", width=700 ,height=400)
+
     with dpg.window(tag="scanprogress", show=False, modal=True, no_title_bar=True, no_close=True, no_resize=True, no_move=True, width=-1, height=-1,pos=(40,40)):
         dpg.add_text("Discovering charts...", tag="scanprogress_discovering")
         dpg.add_text("0 charts found.", tag="scanprogress_chartsfound", show=False)
@@ -410,6 +416,7 @@ if __name__ == '__main__':
     dpg.create_viewport(title="Hydra v0.0.1", width=1280, height=720, small_icon=icopath, large_icon=icopath)
 
     #demo.show_demo()
+    #dpg.show_font_manager()
     
     dpg.set_viewport_resize_callback(on_viewport_resize)
 
