@@ -19,16 +19,17 @@ class HydraRecord:
         self.hyversion = hymisc.HYDRA_VERSION
         
         # Hash of the chart file. Not comparable to other apps' song hashes.
-        self.hyhash = None
+        #self.hyhash = None
         
         # Some output-only metadata for convenience if digging through the json
-        self.ref_songname = None
-        self.ref_artistname = None
+        #self.ref_name = None
+        #self.ref_artist = None
+        #self.ref_charter = None
         
         # Chart params.
-        self.difficulty = None
-        self.prodrums = None
-        self.bass2x = None
+        #self.difficulty = None
+        #self.prodrums = None
+        #self.bass2x = None
         
         # Path results.
         self.paths = []
@@ -37,51 +38,47 @@ class HydraRecord:
     def from_dict(r_dict):
         record = HydraRecord()
         
-        record.version = r_dict['version']
-        
-        record.songid = r_dict['songid']
-        record.difficulty = r_dict['difficulty']
-        record.prodrums = r_dict['prodrums']
-        record.bass2x = r_dict['bass2x']
-        
-        record.notecount = r_dict['notecount']
-        
-        record._multsqueezes = []
-        
-        for r_solo in r_dict['solos']:
-            raise NotImplementedError
-        for msq_dict in r_dict['multsqueezes']:
-            multsqueeze = HydraRecordMultSqueeze()
-            
-            multsqueeze.multiplier = msq_dict['multiplier']
-            multsqueeze.chord = HydraRecordChord.from_dict(msq_dict['chord'])
-            multsqueeze.squeezecount = msq_dict['squeezecount']
-            multsqueeze.points = msq_dict['points']
-            
-            record._multsqueezes.append(multsqueeze)
+        record.hyversion = r_dict['hyversion']
             
         for path_dict in r_dict['paths']:
             path = HydraRecordPath()
             
-            path.multsqueezes = record._multsqueezes
+            path.multsqueezes = []
+            
+            for msq_dict in path_dict['multsqueezes']:
+                multsqueeze = HydraRecordMultSqueeze()
+                
+                multsqueeze.multiplier = msq_dict['multiplier']
+                multsqueeze.chord = HydraRecordChord.from_dict(msq_dict['chord'])
+                multsqueeze.squeezecount = msq_dict['squeezecount']
+                multsqueeze.points = msq_dict['points']
+                
+                path.multsqueezes.append(multsqueeze)
             
             for act_dict in path_dict['activations']:
                 act = HydraRecordActivation()
                 
                 act.skips = act_dict['skips']
-                act.measure = act_dict['measure']
+                act.timecode = act_dict['timecode']
                 act.chord = HydraRecordChord.from_dict(act_dict['chord'])
                 act.sp_meter = act_dict['sp_meter']
+                act.frontend = act_dict['frontend']
+                act.backends = act_dict['backends']
+                act.sqinouts = act_dict['sqinouts']
                 
                 path.activations.append(act)
                 
                 
             path.avgmultiplier = path_dict['avgmultiplier']
             
+            path.notecount = path_dict['notecount']
+            
             for scoreattr in ['score_base', 'score_combo', 'score_sp',
                               'score_solo', 'score_accents', 'score_ghosts']:
                 setattr(path, scoreattr, path_dict[scoreattr] if scoreattr in path_dict else 0)
                 
+            path.ref_totalscore = path.totalscore()
+            
             record.paths.append(path)
                     
         return record
@@ -105,11 +102,14 @@ class HydraRecordPath:
         self.score_ghosts = 0
 
         # Redundant total score for convenience if digging through the json
-        self.ref_optimal = 0
+        self.ref_totalscore = 0
        
     def totalscore(self):
         return (self.score_base + self.score_combo + self.score_sp
                 + self.score_solo + self.score_accents + self.score_ghosts)
+                
+    def pathstring(self):
+        return ' '.join([str(a.skips) for a in self.activations])
 
 class HydraRecordActivation:
     

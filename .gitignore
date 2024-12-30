@@ -10,3 +10,4 @@ test/__pycache__
 # HyApp
 hyapp.ini
 hydra.db
+records.json

@@ -21,6 +21,19 @@ INIPATH = ROOTPATH / "hyapp.ini"
 DBPATH = ROOTPATH / "hydra.db"
 ICOPATH = ROOTPATH / "resource" / "Icon.ico"
 FONTPATH_ANTQ = ROOTPATH / "resource" / "ShipporiAntiqueB1-Regular.ttf"
+ICOPATH_NOTE = ROOTPATH / "resource" / "uicon_note_32.png"
+ICOPATH_SNAKE = ROOTPATH / "resource" / "uicon_snake_32.png"
+BOOKPATH = ROOTPATH / "records.json"
+
+TABLE_COL_INFO = {
+    'hyhash': (0, "Hydra Hash"),
+    'name': (1, "Title"),
+    'artist': (2, "Artist"),
+    'charter': (3, "Charter"),
+    'path': (4, "File Path"),
+    'folder': (5, "Folder"),
+}
+
 
 class ChartFileError(Exception):
     """Just a custom error for a chart file that doesn't work."""

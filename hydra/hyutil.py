@@ -25,7 +25,7 @@ def scan_charts(chartfolder,
     cur = cxn.cursor()
     
     # Initialize db
-    chartrow = "(hyhash, name, artist, charter, path, folder)"
+    chartrow = TABLE_COL_INFO.keys()
     cur.execute("DROP TABLE IF EXISTS charts")
     cur.execute(f"CREATE TABLE charts{chartrow}")
     

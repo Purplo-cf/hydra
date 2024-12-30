@@ -434,12 +434,12 @@ class GraphPather:
                     be.chord = hyrecord.HydraRecordChord.from_chord(be.chord)
             
             # Save optimal for convenience (it's just the sum of the other scores)
-            path.record.ref_optimal = path.record.totalscore()
+            path.record.ref_totalscore = path.record.totalscore()
             
             self.record.paths.append(path.record)
 
         # Fill out more fields on hyrecord
-        self.record.hyhash = graph.songhash
+        #self.record.hyhash = graph.songhash
 
 class GraphPath:
     """Quick early note:
