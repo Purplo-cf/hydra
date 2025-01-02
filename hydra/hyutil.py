@@ -25,9 +25,10 @@ def scan_charts(chartfolder,
     cur = cxn.cursor()
     
     # Initialize db
-    chartrow = TABLE_COL_INFO.keys()
+    chartrow = ','.join(hymisc.TABLE_COL_INFO.keys())
+    print(chartrow)
     cur.execute("DROP TABLE IF EXISTS charts")
-    cur.execute(f"CREATE TABLE charts{chartrow}")
+    cur.execute(f"CREATE TABLE charts({chartrow})")
     
     # Copy info from each ini to the db
     for i, (chartfile, inifile, path) in enumerate(chartfiles):        

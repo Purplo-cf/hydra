@@ -6,8 +6,8 @@ from . import hymisc
 class HydraRecord:
     """A "printout" representing one analyzed chart.
     
-    Each unique chart file can have 1 unique HydraRecord per combination
-    of difficulty, pro/non-pro, and 2x/1x bass.
+    Each unique chart file (hash) can have 1 unique HydraRecord per combination
+    of difficulty, pro/non-pro, and 2x/1x bass (chartmode).
     
     Multiple paths for a given chart are grouped within the same hyrecord.
     
@@ -17,19 +17,6 @@ class HydraRecord:
     def __init__(self):   
         # Made by this version of Hydra.
         self.hyversion = hymisc.HYDRA_VERSION
-        
-        # Hash of the chart file. Not comparable to other apps' song hashes.
-        #self.hyhash = None
-        
-        # Some output-only metadata for convenience if digging through the json
-        #self.ref_name = None
-        #self.ref_artist = None
-        #self.ref_charter = None
-        
-        # Chart params.
-        #self.difficulty = None
-        #self.prodrums = None
-        #self.bass2x = None
         
         # Path results.
         self.paths = []
@@ -109,8 +96,11 @@ class HydraRecordPath:
                 + self.score_solo + self.score_accents + self.score_ghosts)
                 
     def pathstring(self):
-        return ' '.join([str(a.skips) for a in self.activations])
-
+        if self.activations:
+            return ' '.join([str(a.skips) for a in self.activations])
+        else:
+            return "(No activations.)"
+            
 class HydraRecordActivation:
     
     def __init__(self):
@@ -140,6 +130,9 @@ class HydraRecordMultSqueeze:
         self.squeezecount = None
         # The base points gained from performing this squeeze fully vs. completely missing it.
         self.points = None
+        
+    def notationstr(self):
+        return f"{self.multiplier}x"
 
 class HydraRecordFrontendSqueeze:
     
@@ -170,7 +163,8 @@ class HydraRecordChord:
         return json.dumps(self, default=lambda r: r.__dict__, sort_keys=True, indent=4)
         
     def rowstr(self):
-        return f"{"K" if self.kick else ""}{"R" if self.red else ""}{"Y" if self.yellow else ""}{"B" if self.blue else ""}{"G" if self.green else ""}"
+        return f"{"K" if self.kick else " "}{"R" if self.red else " "}{"Y" if self.yellow else " "}{"B" if self.blue else " "}{"G" if self.green else " "}"
+        
         
     @staticmethod
     def from_chord(chord):

@@ -97,6 +97,7 @@ class ScoreGraph:
                 msq.multiplier = to_multiplier(self.combo) + 1
                 msq.chord = hyrecord.HydraRecordChord.from_chord(timestamp.chord)
                 msq.points = comboscore - worse_comboscore
+                msq.squeezecount = (self.combo + timestamp.chord.count()) % 10 + 1
                 self.acc_multsqueezes.append(msq)
             
             
