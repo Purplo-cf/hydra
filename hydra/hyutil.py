@@ -137,7 +137,7 @@ def load_records(filepath):
             
     return records
     
-def run_chart(filepath):
+def run_chart(filepath, m_difficulty, m_pro, m_bass2x):
     """Current chain to go from chart file to hyrecord.
     
     First parses either chart format to a Song object,
@@ -146,9 +146,9 @@ def run_chart(filepath):
     
     """
     if filepath.endswith(".mid"):
-        song = hysong.MidiParser().parsefile(filepath)
+        song = hysong.MidiParser().parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     elif filepath.endswith(".chart"):
-        song = hysong.ChartParser().parsefile(filepath)
+        song = hysong.ChartParser().parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     else:
         raise hymisc.ChartFileError("Unexpected chart filetype")
     

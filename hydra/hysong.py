@@ -156,7 +156,8 @@ class MidiParser:
                 
                 # Apply fleeting modifiers like toms, solo, and disco flip.
                 if self.timestamp.chord:
-                    self.timestamp.chord.apply_cymbals(not self.tom_flags[98], not self.tom_flags[99], not self.tom_flags[100])
+                    if self.mode_pro:
+                        self.timestamp.chord.apply_cymbals(not self.tom_flags[98], not self.tom_flags[99], not self.tom_flags[100])
                     
                     if self.disco_flip:
                         self.timestamp.chord.apply_disco_flip()
@@ -269,7 +270,8 @@ class MidiParser:
                         
                 # Notes
                 case 95 | 96 | 97 | 98 | 99 | 100:
-                    if note_started:
+                    ignored_2x = msg.note == 95 and not self.mode_bass2x
+                    if note_started and not ignored_2x:
                         if self.push_primed:
                             self.push_timestamp()
 
@@ -278,11 +280,14 @@ class MidiParser:
                             self.timestamp.chord = hynote.Chord()
                         self.timestamp.chord.add_note(msg.note, msg.velocity)
         
-    def parsefile(self, filename):
+    def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
         assert(filename.endswith(".mid"))
         
         mid = mido.MidiFile(filename)
         self.ticks_per_beat = mid.ticks_per_beat
+        self.mode_difficulty = m_difficulty
+        self.mode_pro = m_pro
+        self.mode_bass2x = m_bass2x
 
         # Remove other instruments while keeping events and any un-named or generic tracks
         for t in mid.tracks:
@@ -620,8 +625,11 @@ class ChartParser:
             
         return (mm, tm)
             
-    def parsefile(self, filename):
+    def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
         self.song = Song()
+        self.mode_difficulty = m_difficulty
+        self.mode_pro = m_pro
+        self.mode_bass2x = m_bass2x
         
         with open(filename, 'rb') as chartbin:
             self.song.songhash = hashlib.file_digest(chartbin, "md5").hexdigest()
@@ -694,7 +702,8 @@ class ChartParser:
                             timestamp.chord.Green = hynote.ChordNote.NORMAL
                         case 32:
                             # 2x Kick note
-                            timestamp.chord.Kick2x = hynote.ChordNote.NORMAL
+                            if self.mode_bass2x:
+                                timestamp.chord.Kick2x = hynote.ChordNote.NORMAL
                         case 34:
                             # Red accent
                             assert(timestamp.chord.Red == hynote.ChordNote.NORMAL)
@@ -730,15 +739,18 @@ class ChartParser:
                         case 66:
                             # Yellow cymbal
                             assert(timestamp.chord.Yellow != None)
-                            timestamp.chord.Yellow = timestamp.chord.Yellow.to_cymbal()
+                            if self.mode_pro:
+                                timestamp.chord.Yellow = timestamp.chord.Yellow.to_cymbal()
                         case 67:
                             # Blue cymbal
                             assert(timestamp.chord.Blue != None)
-                            timestamp.chord.Blue = timestamp.chord.Blue.to_cymbal()
+                            if self.mode_pro:
+                                timestamp.chord.Blue = timestamp.chord.Blue.to_cymbal()
                         case 68:
                             # Green cymbal
                             assert(timestamp.chord.Green != None)
-                            timestamp.chord.Green = timestamp.chord.Green.to_cymbal()
+                            if self.mode_pro:
+                                timestamp.chord.Green = timestamp.chord.Green.to_cymbal()
                         case _:
                             raise NotImplementedError(f"Unknown note {tick_entry.notevalue}")
                 

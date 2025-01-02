@@ -231,14 +231,17 @@ def on_chartfolder_selected(sender, app_data):
 def on_viewdifficulty(sender, app_data):
     appstate.usettings.view_difficulty = app_data
     refresh_viewdifficulty()
+    refresh_tableview()
 
 def on_viewprodrums(sender, app_data):
     appstate.usettings.view_prodrums = app_data
     refresh_viewprodrums()
+    refresh_tableview()
     
 def on_viewbass2x(sender, app_data):
     appstate.usettings.view_bass2x = app_data
     refresh_viewbass2x()
+    refresh_tableview()
 
 def on_depth_value(sender, app_data):
     appstate.usettings.depth_value = app_data
@@ -363,7 +366,7 @@ def on_run_chart(sender, app_data, user_data):
     dpg.show_item("songdetails_progresspanel")
     # run chart
     chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0]
-    record = hyutil.run_chart(chartfile)
+    record = hyutil.run_chart(chartfile, appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x)
     
     appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
     
@@ -656,7 +659,8 @@ if __name__ == '__main__':
             dpg.add_spacer(height=2)
             with dpg.group(horizontal=True, tag="libraryviewcontrols"):
                 dpg.add_text("View:")
-                dpg.add_combo(("Expert", "Hard", "Medium", "Easy"), tag="view_difficulty_combo", width=120, callback=on_viewdifficulty)
+                dpg.add_combo(("Expert",), tag="view_difficulty_combo", width=120, callback=on_viewdifficulty)
+                #dpg.add_combo(("Expert", "Hard", "Medium", "Easy"), tag="view_difficulty_combo", width=120, callback=on_viewdifficulty)
                 dpg.add_checkbox(label="Pro Drums", tag="view_prodrums_check", callback=on_viewprodrums)
                 dpg.add_checkbox(label="2x Bass", tag="view_bass2x_check", callback=on_viewbass2x)
             
