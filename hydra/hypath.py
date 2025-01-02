@@ -79,6 +79,8 @@ class ScoreGraph:
                 backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
                 self.advance_tracks(pending_deact, None)
                 self.add_deact_edge(backend_history, song)
+                if timestamp.timecode.ms - pending_deact.ms < 140:
+                    self.recent_deacts.append(pending_deact)
                     
             # remove the deacts we just handled
             pending_deacts = set([tc for tc in pending_deacts if tc not in gap_deacts])

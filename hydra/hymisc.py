@@ -156,8 +156,8 @@ class Timecode:
         return str(self.ticks)
     
     def measurestr(self):
-        strs = [str(v) for v in self.measure_beats_ticks]
-        return f"m{'.'.join(strs)}"
+        m, b, t = self.measure_beats_ticks
+        return f"m{m + 1}.{b + 1}.{t}"
     
     def plusmeasure(self, add_measures, song):
         """Returns a new Timecode offset by the given number of measures.
