@@ -2,7 +2,7 @@ import mido
 import re
 import hashlib
 
-from . import hynote
+from . import hyrecord
 from . import hymisc
 
 class SongTimestamp:
@@ -277,8 +277,8 @@ class MidiParser:
 
                         # Add to current chord - tom status will apply later
                         if not self.timestamp.chord:
-                            self.timestamp.chord = hynote.Chord()
-                        self.timestamp.chord.add_note(msg.note, msg.velocity)
+                            self.timestamp.chord = hyrecord.HydraRecordChord()
+                        self.timestamp.chord.add_from_midi(msg.note, msg.velocity)
         
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
         assert(filename.endswith(".mid"))
@@ -653,7 +653,7 @@ class ChartParser:
         for tick,tick_entries in self.sections["ExpertDrums"].data.items():
             
             timestamp = SongTimestamp()
-            timestamp.chord = hynote.Chord()
+            timestamp.chord = hyrecord.HydraRecordChord()
             
             timestamp.time = self.tick_to_time(tick)
             timestamp.measure = self.time_to_measure(timestamp.time)
@@ -666,7 +666,6 @@ class ChartParser:
             timestamp.timecode = hymisc.Timecode(tick, self.song)
             
             timestamp.flag_solo = solo_on
-            
             # Loop over the things happening on this tick
             # Sort note values ascending to make the order of adding/modifying notes completely predictable
             for tick_entry in sorted(tick_entries, key=lambda e: e.notevalue if e.notevalue != None else -1):
@@ -687,70 +686,59 @@ class ChartParser:
                     match tick_entry.notevalue:
                         case 0:
                             # Kick note
-                            timestamp.chord.Kick = hynote.ChordNote.NORMAL
+                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.KICK)
                         case 1:
                             # Red note
-                            timestamp.chord.Red = hynote.ChordNote.NORMAL
+                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.RED)
                         case 2:
                             # Yellow note
-                            timestamp.chord.Yellow = hynote.ChordNote.NORMAL
+                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.YELLOW)
                         case 3:
                             # Blue note
-                            timestamp.chord.Blue = hynote.ChordNote.NORMAL
+                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.BLUE)
                         case 4:
                             # Green note
-                            timestamp.chord.Green = hynote.ChordNote.NORMAL
+                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.GREEN)
                         case 32:
                             # 2x Kick note
                             if self.mode_bass2x:
-                                timestamp.chord.Kick2x = hynote.ChordNote.NORMAL
+                                timestamp.chord.add_2x()
                         case 34:
                             # Red accent
-                            assert(timestamp.chord.Red == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Red = hynote.ChordNote.ACCENT
+                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.RED)
                         case 35:
                             # Yellow accent
-                            assert(timestamp.chord.Yellow == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Yellow = hynote.ChordNote.ACCENT
+                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.YELLOW)
                         case 36:
                             # Blue accent
-                            assert(timestamp.chord.Blue == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Blue = hynote.ChordNote.ACCENT
+                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.BLUE)
                         case 37:
                             # Green accent
-                            assert(timestamp.chord.Green == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Green = hynote.ChordNote.ACCENT
+                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.GREEN)
                         case 40:
                             # Red ghost
-                            assert(timestamp.chord.Red == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Red = hynote.ChordNote.GHOST
+                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.RED)
                         case 41:
                             # Yellow ghost
-                            assert(timestamp.chord.Yellow == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Yellow = hynote.ChordNote.GHOST
+                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.YELLOW)
                         case 42:
                             # Blue ghost
-                            assert(timestamp.chord.Blue == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Blue = hynote.ChordNote.GHOST
+                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.BLUE)
                         case 43:
                             # Green ghost
-                            assert(timestamp.chord.Green == hynote.ChordNote.NORMAL)
-                            timestamp.chord.Green = hynote.ChordNote.GHOST
+                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.GREEN)
                         case 66:
                             # Yellow cymbal
-                            assert(timestamp.chord.Yellow != None)
                             if self.mode_pro:
-                                timestamp.chord.Yellow = timestamp.chord.Yellow.to_cymbal()
+                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.YELLOW)
                         case 67:
                             # Blue cymbal
-                            assert(timestamp.chord.Blue != None)
                             if self.mode_pro:
-                                timestamp.chord.Blue = timestamp.chord.Blue.to_cymbal()
+                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.BLUE)
                         case 68:
                             # Green cymbal
-                            assert(timestamp.chord.Green != None)
                             if self.mode_pro:
-                                timestamp.chord.Green = timestamp.chord.Green.to_cymbal()
+                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.GREEN)
                         case _:
                             raise NotImplementedError(f"Unknown note {tick_entry.notevalue}")
                 

@@ -4,7 +4,6 @@ import math
 import json
 from enum import Enum
 
-from . import hynote
 from . import hyrecord
 from . import hymisc
 
@@ -55,8 +54,6 @@ class ScoreGraph:
         
         self.acc_sp_phrases = [] # array of (timecode, map of timecodes: extended timecodes factoring cap into account)
         
-        self.debug_total_basescore = 0
-        
         self.acc_multsqueezes = []
         
         self.acc_latest_sp_time = None
@@ -68,8 +65,6 @@ class ScoreGraph:
         for ts_i, timestamp in enumerate(song.sequence):
             
             self.recent_deacts = [tc for tc in self.recent_deacts if timestamp.timecode.ms - tc.ms < 140]
-            
-            self.debug_total_basescore += timestamp.chord.debug_basescore()
             
             # handle any deacts that occur between timestamps
             gap_deacts = sorted([tc for tc in pending_deacts if tc < timestamp.timecode])
@@ -88,20 +83,17 @@ class ScoreGraph:
             self.acc_notecount += timestamp.chord.count()
             self.acc_soloscore += 100 * timestamp.chord.count() if timestamp.flag_solo else 0
             
-            points_by_source = sourcescores(timestamp.chord, self.combo, True)
-            worse_points = sourcescores(timestamp.chord, self.combo, True, reverse=True)
+            points_by_source, sqout_reduction, msq_points = sourcescores(timestamp.chord, self.combo)
             
             comboscore = points_by_source['combo_note'] + points_by_source['combo_cymbal'] + points_by_source['combodynamic_note'] + points_by_source['combodynamic_cymbal']
-            worse_comboscore = worse_points['combo_note'] + worse_points['combo_cymbal'] + worse_points['combodynamic_note'] + worse_points['combodynamic_cymbal']
             
-            if comboscore != worse_comboscore:
+            if msq_points != 0:
                 msq = hyrecord.HydraRecordMultSqueeze()
                 msq.multiplier = to_multiplier(self.combo) + 1
-                msq.chord = hyrecord.HydraRecordChord.from_chord(timestamp.chord)
-                msq.points = comboscore - worse_comboscore
+                msq.chord = timestamp.chord
+                msq.points = msq_points
                 msq.squeezecount = (self.combo + timestamp.chord.count()) % 10 + 1
                 self.acc_multsqueezes.append(msq)
-            
             
             self.acc_basescore += points_by_source['base_note'] + points_by_source['base_cymbal'] + points_by_source['dynamic_cymbal']
             self.acc_comboscore += comboscore
@@ -112,10 +104,7 @@ class ScoreGraph:
             
             self.combo += timestamp.chord.count()
             
-            sqout_scoring = sourcescores(timestamp.chord, self.combo, True, sqout=True)
-            sqout_sp_points = sqout_scoring['sp_note'] + sqout_scoring['sp_cymbal'] + sqout_scoring['combosp_note'] + sqout_scoring['combosp_cymbal'] + sqout_scoring['spdynamic_note'] + sqout_scoring['spdynamic_cymbal'] + sqout_scoring['combospdynamic_note'] + sqout_scoring['combospdynamic_cymbal']
-            
-            _backend = (hyrecord.HydraRecordBackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, sqout_sp_points), timestamp.flag_sp)
+            _backend = (hyrecord.HydraRecordBackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, timestamp_spscore - sqout_reduction), timestamp.flag_sp)
             
             # Add this chord's sp points to backends that will be fed to any deactivation that happens soon
             backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
@@ -429,13 +418,6 @@ class GraphPather:
     
         # Paths already built their HydraRecordPaths; add them to our hyrecord
         for path in paths:
-            # Fix chords - to do: Fix it at the source
-            for act in path.record.activations:
-                if act.frontend:
-                    act.frontend.chord = hyrecord.HydraRecordChord.from_chord(act.frontend.chord)
-                for be in act.backends:
-                    be.chord = hyrecord.HydraRecordChord.from_chord(be.chord)
-            
             # Save optimal for convenience (it's just the sum of the other scores)
             path.record.ref_totalscore = path.record.totalscore()
             
@@ -507,7 +489,7 @@ class GraphPath:
             self.record.score_accents += adv_edge.accentscore
             self.record.score_ghosts += adv_edge.ghostscore
             
-            self.record.notecount += adv_edge.notecount
+            #self.record.notecount += adv_edge.notecount
             
             #print(f"\tGoing to {adv_edge.dest.timecode.measurestr()}.")
             # Applying SP on this edge
@@ -602,7 +584,7 @@ class GraphPath:
             new_path.record.activations.append(hyrecord.HydraRecordActivation())
             new_path.record.activations[-1].skips = self.currentskips
             new_path.record.activations[-1].timecode = self.currentnode.timecode
-            new_path.record.activations[-1].chord = hyrecord.HydraRecordChord.from_chord(self.currentnode.chord)
+            new_path.record.activations[-1].chord = self.currentnode.chord
             new_path.record.activations[-1].sp_meter = self.sp
             
             new_path.record.activations[-1].frontend = br_edge.frontend
@@ -658,10 +640,26 @@ class GraphPath:
     def is_complete(self):
         return self.currentnode == None
      
-# Arranges a chord's points by every possible combination of score modifiers.
-# Looks like a lot but allows for any kind of score breakdown or "order of operations" on the game's score multipliers.
-def sourcescores(chord, combo, sp_active, reverse=False, sqout=False):
+
+def sourcescores(chord, combo):
+    """Calculates the score for hitting this chord with the current combo.
     
+    Builds a complete score breakdown for base score, SP, combo, cymbals, and
+    dynamics.
+    
+    Some mechanics can result in a lower score for the chord.
+    For sanity reasons these lower scores don't have their own complete
+    score breakdowns, but for multiplier squeezes the point difference is just
+    nice to know, its breakdown is not as important; and for SqOuts the points
+    are all SP points despite the lack of complete detail.
+    
+    Some mechanics (multiplier squeezes and SP squeezes) can overlap in a way
+    that makes the optimal strategy more complicated. This is super rare, so
+    for now we're ignoring this possibility.
+    
+    """
+    # Full optimal score is the sum of these values.
+    # Every possible cross-multiplication of the score multipliers.
     points_by_source = {
         'base_note': 0,             'base_cymbal': 0,
         'combo_note': 0,            'combo_cymbal': 0,
@@ -671,13 +669,17 @@ def sourcescores(chord, combo, sp_active, reverse=False, sqout=False):
         'dynamic_note_ghost': 0,
         'combodynamic_note': 0,     'combodynamic_cymbal': 0,
         'spdynamic_note': 0,        'spdynamic_cymbal': 0,
-        'combospdynamic_note': 0,   'combospdynamic_cymbal': 0}
+        'combospdynamic_note': 0,   'combospdynamic_cymbal': 0,
+    }
     
-    # ew, fix asap
-    if sqout:
-        reverse = True
+    # How many points to subtract if this chord is a SqOut
+    sqout_reduction = 0
     
-    ordering = sorted(chord.notes(), key=lambda n: n.basescore(), reverse=reverse)
+    # How many points depend on doing a multiplier squeeze correctly
+    msq_points = 0
+    
+    ordering = chord.notes(basesorted=True)
+    initial_combo_mult = to_multiplier(combo)
     
     for i,note in enumerate(ordering):
         combo += 1
@@ -685,29 +687,37 @@ def sourcescores(chord, combo, sp_active, reverse=False, sqout=False):
         
         basevalue = 50
         cymbvalue = 15
-        
-        if sqout and i == len(ordering) - 1:
-            sp_active = False
 
         points_by_source['base_note'] += basevalue
         points_by_source['base_cymbal'] += cymbvalue if note.is_cymbal() else 0
         points_by_source['combo_note'] += basevalue * (combo_multiplier - 1)
         points_by_source['combo_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() else 0
-        points_by_source['sp_note'] += basevalue if sp_active else 0
-        points_by_source['sp_cymbal'] += cymbvalue if note.is_cymbal() and sp_active else 0
-        points_by_source['combosp_note'] += basevalue * (combo_multiplier - 1) if sp_active else 0
-        points_by_source['combosp_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and sp_active else 0
+        points_by_source['sp_note'] += basevalue
+        points_by_source['sp_cymbal'] += cymbvalue if note.is_cymbal() else 0
+        points_by_source['combosp_note'] += basevalue * (combo_multiplier - 1)
+        points_by_source['combosp_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() else 0
         points_by_source['dynamic_note_accent'] += basevalue if note.is_accent() else 0
         points_by_source['dynamic_note_ghost'] += basevalue if note.is_ghost() else 0
         points_by_source['dynamic_cymbal'] += cymbvalue if note.is_cymbal() and note.is_dynamic() else 0
         points_by_source['combodynamic_note'] += basevalue * (combo_multiplier - 1) if note.is_dynamic() else 0
         points_by_source['combodynamic_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and note.is_dynamic() else 0
-        points_by_source['spdynamic_note'] += basevalue if sp_active and note.is_dynamic() else 0
-        points_by_source['spdynamic_cymbal'] += cymbvalue if note.is_cymbal() and sp_active and note.is_dynamic() else 0
-        points_by_source['combospdynamic_note'] += basevalue * (combo_multiplier - 1) if sp_active and note.is_dynamic() else 0
-        points_by_source['combospdynamic_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and sp_active and note.is_dynamic() else 0
-    
-    return points_by_source
+        points_by_source['spdynamic_note'] += basevalue if note.is_dynamic() else 0
+        points_by_source['spdynamic_cymbal'] += cymbvalue if note.is_cymbal() and note.is_dynamic() else 0
+        points_by_source['combospdynamic_note'] += basevalue * (combo_multiplier - 1) if note.is_dynamic() else 0
+        points_by_source['combospdynamic_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and note.is_dynamic() else 0
+        
+        # Quick and dirty multiplier squeeze calculation
+        if combo_multiplier > initial_combo_mult:
+            worse_note = ordering[len(ordering) - 1 - i]
+            better_notescore = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * (2 if note.is_dynamic() else 1)
+            worse_notescore = (basevalue + (cymbvalue if worse_note.is_cymbal() else 0)) * (2 if worse_note.is_dynamic() else 1)
+            msq_points += better_notescore - worse_notescore
+            
+        # Quick and dirty SqOut calculation
+        if i == 0:
+            sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
+                
+    return (points_by_source, sqout_reduction, msq_points)
     
 def to_multiplier(combo):
     if combo < 10:

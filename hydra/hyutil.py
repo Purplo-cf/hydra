@@ -126,16 +126,6 @@ def discover_charts(rootname, cb_chartfound=None):
             unexplored += [os.sep.join([f, name]) for name in os.listdir(f)]
             
     return [tuple(info) for info in found_by_dirname.values() if all(info)]
-
-def load_records(filepath):
-    """Loads hyrecords from a json file."""
-    records = []
-    
-    with open(filepath, mode='r', encoding='utf-8') as recordfile:
-        records_json = json.load(recordfile)['records']
-        records = [hyrecord.HydraRecord.from_dict(r) for r in records_json]
-            
-    return records
     
 def run_chart(filepath, m_difficulty, m_pro, m_bass2x):
     """Current chain to go from chart file to hyrecord.

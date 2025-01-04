@@ -64,8 +64,9 @@ class Timecode:
         self.measure_percent = 0.0
         self.ms = 0.0
         
-        self._init_mbt(song)
-        self._init_ms(song)
+        if song is not None:
+            self._init_mbt(song)
+            self._init_ms(song)
     
     def _init_mbt(self, song):
         """Iterate over a song's meter to convert ticks to measures.

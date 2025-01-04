@@ -119,27 +119,18 @@ class HyAppRecordBook:
         # Initialize
         self.book = {}
         
-        # Import from save file
         try:
+            # Import from save file
             with open(hymisc.BOOKPATH, 'r') as jsonfile:
-                book_json = json.load(jsonfile)
-                for songhash, songinfo in book_json.items():
-                    # Copy song info
-                    self.book[songhash] = {
-                        'ref_name': songinfo['ref_name'],
-                        'ref_artist': songinfo['ref_artist'],
-                        'ref_charter': songinfo['ref_charter'],
-                        'records': {chartmode: hyrecord.HydraRecord.from_dict(record_dict) for chartmode, record_dict in songinfo['records'].items()},
-                    }
-        except FileNotFoundError: #():#(FileNotFoundError, json.decoder.JSONDecodeError, TypeError, KeyError):
-            # To do: Errors other than FileNotFoundError should be handled
-            # without nuking self.book, since when updating hydra versions it'd
-            # be nice to mark records as stale rather than erasing them all.
+                self.book = json.load(jsonfile, object_hook=hyrecord.custom_json_load)
+                if self.book is None:
+                    self.book = {}
+        except FileNotFoundError:
             self.book = {}
         
         # Resave / create save file
         self.savejson()
-            
+    
     def add_song(self, hyhash, name, artist, charter):
         """Add an entry for the given hash.
         
@@ -158,6 +149,7 @@ class HyAppRecordBook:
             'ref_name': name,
             'ref_artist': artist,
             'ref_charter': charter,
+            
             'records': {},
         }
         
@@ -176,7 +168,7 @@ class HyAppRecordBook:
     def savejson(self):
         """Save current state to json file."""
         with open(hymisc.BOOKPATH, 'w') as jsonfile:
-            json.dump(self.book, jsonfile, default=lambda r: r.__dict__, indent=4)
+            json.dump(self.book, jsonfile, default=hyrecord.custom_json_save, indent=4)
 
 class HyAppState:
     """Manages Hydra's state."""
@@ -298,7 +290,6 @@ def on_path_selected(sender, app_data, record):
     user_data: HyRecordPath.
     
     """
-    print(f"{sender}, {app_data}, {record}")
     
     # "Unlock" the previous selectable
     if appstate.current_path_selectable:
@@ -317,7 +308,7 @@ def on_path_selected(sender, app_data, record):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
         if record.multsqueezes:
             for msq in record.multsqueezes:
-                with dpg.tree_node(label=f"{msq.notationstr()}  ({msq.chord.rowstr()})", default_open=False):
+                with dpg.tree_node(label=f"{msq.notationstr()}  [{msq.chord.rowstr()}]", default_open=False):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
                     dpg.add_text(f"Hit {msq.squeezecount} high-value note{'' if msq.squeezecount == 1 else 's'} last for +{msq.points}.")
         else:
