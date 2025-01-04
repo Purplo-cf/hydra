@@ -1,61 +1,28 @@
 import os
 import unittest
 import configparser
+import hashlib
+import json
 
 import hydra.hypath as hypath
 import hydra.hyutil as hyutil
 import hydra.hymisc as hymisc
+import hydra.hyrecord as hyrecord
 
 
 class TestScoring(unittest.TestCase):
-    
-    def get_testchart_or_skip(self, name):
-        try:
-            return self.name_to_notesfile[name]
-        except KeyError:
-            self.skipTest(f"{name} not found in charts.")
-            return None
-            
-    def get_testsolution_or_skip(self, name):
-        solns_with_name = [r for r in self.solnrecords if r.songid == name]
-        
-        if len(solns_with_name) == 1:
-            return solns_with_name[0]
-        elif not solns_with_name:
-            self.skipTest(f"{name} not found in solutions.")
-            return None
-        else:
-            self.skipTest(f"Multiple {name} solutions found, please fix.")
-            return None
-
     def setUp(self):
-        # Get the test charts
-        chartsroot = os.sep.join(["..","test","input","test_scoring"])
-        charts = hyutil.discover_charts(chartsroot)        
-        
-        self.name_to_notesfile = {}
-        for notesfile, inifile, path in charts:
-            config = configparser.ConfigParser()
-            config.read(inifile)
-            
-            if 'Song' in config:
-                name = config['Song']['name']
-            elif 'song' in config:
-                name = config['song']['name']
-            else:
-                raise hymisc.ChartFileError()
-            
-            self.name_to_notesfile[name] = notesfile
+        self.chartfolder = os.sep.join(["..","test","input","test_scoring"])
         
         # Get the solution data
-        solnsroot = os.sep.join(["..","test","solutions","test_scoring.json"])
-        self.solnrecords = hyutil.load_records(solnsroot)
-        
-    def _test_scoring(self, name):
-        chartpath = self.get_testchart_or_skip(name)
-        soln_record = self.get_testsolution_or_skip(name)
-        
-        record = hyutil.run_chart(chartpath)
+        solnspath = os.sep.join(["..","test","solutions","test_scoring.json"])
+        with open(solnspath, 'r') as jsonfile:
+            self.book = json.load(jsonfile, object_hook=hyrecord.custom_json_load)
+    
+    def _test_scoring(self, chartname, hyhash):
+        chartpath = self.chartfolder + os.sep + chartname
+        record = hyutil.run_chart(chartpath, 'expert', True, True)
+        soln_record = self.book[hyhash]['records']['Expert Pro Drums, 2x Bass']
         
         path = record.paths[0]
         soln = soln_record.paths[0]
@@ -70,10 +37,10 @@ class TestScoring(unittest.TestCase):
         self.assertEqual(path.totalscore(), soln.totalscore())
         
     def test_missed_injections(self):
-        self._test_scoring("Missed Injections")
+        self._test_scoring("mi.mid", 'fe04583a51eccc70c55788f5096e2947')
         
     def test_entertain_me(self):
-      self._test_scoring("Entertain Me")
+        self._test_scoring("em.chart", '47bd79be8195bc216299c59b43b584d2')
         
     def test_think_dirty_out_loud(self):
-      self._test_scoring("Think Dirty out Loud")
+        self._test_scoring("tdol.mid", 'a80f00cffa9dfd684373aaba03e0f467')
