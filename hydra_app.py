@@ -315,30 +315,49 @@ def on_path_selected(sender, app_data, record):
             dpg.add_text("None.")
             dpg.bind_item_font(dpg.last_item(), "MonoFont")
         
-#    with dpg.tree_node(label="Activations", parent="songdetails_pathdetails", default_open=True):
+    with dpg.tree_node(label="Activations", parent="songdetails_pathdetails", default_open=True):
+        dpg.bind_item_font(dpg.last_item(), "MainFont24")
+        if record.activations:
+            for act in record.activations:
+                with dpg.tree_node(label=f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}", default_open=False, indent=4):
+                    dpg.bind_item_font(dpg.last_item(), "MonoFont")
+                    with dpg.group(indent=12):
+                        dpg.add_text(f"Frontend: {act.frontend.chord.rowstr() if act.frontend is not None else "None"}")
+                        if act.backends:
+                            dpg.add_text("Backends:")
+                            
+                            with dpg.table(width=-10, borders_outerH=True, borders_outerV=True):
+                                for bsq_colname in ["Timing", "Chord", "Points", "Rating"]:
+                                    dpg.add_table_column(label=bsq_colname)
+                                    
+                                for bsq in act.backends:
+                                    with dpg.table_row():
+                                        dpg.add_text(f"{bsq.offset_ms:6.1f}")
+                                        dpg.add_text(f"{bsq.chord.notationstr()}")
+                                        dpg.add_text(f"{bsq.points:4,d}")
+                                        dpg.add_text(f"{bsq.ratingstr()}")
+                        else:
+                            dpg.add_text("Backends: None.")
+                        dpg.add_spacer(height=16)
+        else:
+            dpg.add_text("None.")
+            dpg.bind_item_font(dpg.last_item(), "MonoFont")
     
     with dpg.tree_node(label="Score breakdown", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        nums = [
-            record.score_base, record.score_combo, record.score_sp,
-            record.score_solo, record.score_accents, record.score_ghosts,
-            record.totalscore()
-        ]
-        numwidth = max([len(str(n)) for n in nums])
-        numstrs = [' '*(numwidth - len(str(n))) + str(n) for n in nums]
-        dpg.add_text(f"Notes:            {numstrs[0]}")
+        dpg.add_text(f"Notes:            {record.score_base: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Combo Bonus:      {numstrs[1]}")
+        dpg.add_text(f"Combo Bonus:      {record.score_combo: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Star Power:       {numstrs[2]}")
+        dpg.add_text(f"Star Power:       {record.score_sp: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Solo Bonus:       {numstrs[3]}")
+        dpg.add_text(f"Solo Bonus:       {record.score_solo: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Accent Notes:     {numstrs[4]}")
+        dpg.add_text(f"Accent Notes:     {record.score_accents: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Ghost Notes:      {numstrs[5]}")
+        dpg.add_text(f"Ghost Notes:      {record.score_ghosts: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"\nTotal Score:      {numstrs[6]}")
+        dpg.add_text(f"\nTotal Score:      {record.totalscore(): >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
 
 def on_pageleft(sender, app_data):
@@ -561,18 +580,6 @@ def refresh_songdetails():
     dpg.show_item("songdetails_pathdivider")
     dpg.hide_item("songdetails_nopathsyet")
     
-    def scorestr(score):
-        s = str(score)
-        r = ""
-        digits_left = len(s)
-        for c in s:
-            r += c
-            digits_left -= 1
-
-            if digits_left % 3 == 0 and digits_left != 0:
-                r += ','
-        return r
-    
     # Rebuild path list
     
     dpg.delete_item("songdetails_pathpanel", children_only=True)
@@ -583,7 +590,7 @@ def refresh_songdetails():
     for i, p in enumerate(viewed_record.paths):
         if current_score != p.totalscore():
             current_score = p.totalscore()
-            current_treenode = dpg.add_tree_node(label=scorestr(current_score), parent="songdetails_pathpanel", default_open=True)
+            current_treenode = dpg.add_tree_node(label=f"{current_score:,}", parent="songdetails_pathpanel", default_open=True)
             dpg.bind_item_font(current_treenode, "MonoFont")
         
         pathselectable = dpg.add_selectable(label=p.pathstring(), parent=current_treenode, callback=on_path_selected, user_data=p, default_value=i==0)
@@ -592,8 +599,7 @@ def refresh_songdetails():
         
     # Auto select the first path
     on_path_selected(autoselect, True, viewed_record.paths[0])
-    
-    
+
     
 """ Utility"""
 

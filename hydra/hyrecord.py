@@ -277,7 +277,7 @@ class HydraRecordPath:
                 
     def pathstring(self):
         if self.activations:
-            return ' '.join([str(a.skips) for a in self.activations])
+            return ' '.join([str(a.notationstr()) for a in self.activations])
         else:
             return "(No activations.)"
             
@@ -297,6 +297,8 @@ class HydraRecordActivation:
     def __repr__(self):
         return f"{self.skips}{''.join(self.sqinouts)}\t{self.timecode.measurestr()}\t{self.sp_meter}\t{self.chord.rowstr()}"
 
+    def notationstr(self):
+        return f"{self.skips}{''.join(self.sqinouts)}"
 
 class HydraRecordMultSqueeze:
     
@@ -328,6 +330,29 @@ class HydraRecordBackendSqueeze:
         self.points = points
         self.sqout_points = sqout_points
         self.offset_ms = None
+
+
+    def ratingstr(self):
+        # ms thresholds and the label for the adjacent region on the negative side
+        thresholds = [
+            (-140, "Free"),
+            (-105, "Free"),
+            (-70, "Free"),
+            (-35, "Trivial"),
+            (-1, "Easy"),
+            (1, "Normal"),
+            (35, "Hard"),
+            (70, "Extreme"),
+            (105, "Insane"),
+            (140, "Insane+"),
+        ]
+        max_rating = "Impossible"
+        
+        for threshold, rating in thresholds:
+            if self.offset_ms < threshold:
+                return rating
+        
+        return max_rating
 
 
 class HydraRecordNoteColor(Enum):
@@ -372,6 +397,19 @@ class HydraRecordNoteColor(Enum):
                 return "Blue"
             case HydraRecordNoteColor.GREEN:
                 return "Green"
+                
+    def notationstr(self):
+        match self:
+            case HydraRecordNoteColor.KICK:
+                return "K"
+            case HydraRecordNoteColor.RED:
+                return "R"
+            case HydraRecordNoteColor.YELLOW:
+                return "Y"
+            case HydraRecordNoteColor.BLUE:
+                return "B"
+            case HydraRecordNoteColor.GREEN:
+                return "G"
 
 
 class HydraRecordNoteDynamicType(Enum):
@@ -480,7 +518,11 @@ class HydraRecordChord:
         return len([n for n in self.notes() if n.dynamictype == HydraRecordNoteDynamicType.ACCENT])
         
     def rowstr(self):
-        return " - ".join([str(n) for n in self.notes()])
+        return f"[{" - ".join([str(n) for n in self.notes()])}]"
+        
+    def notationstr(self):
+        letters = [c.notationstr() if n else ' ' for c, n in self.notemap.items()]
+        return f"[{''.join(letters)}]"
         
     def apply_cymbals(self, yellow_iscym, blue_iscym, green_iscym):
         """Utility to edit notes based on a tom/cymbal flag."""
