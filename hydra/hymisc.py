@@ -26,6 +26,12 @@ ICOPATH_NOTE = ROOTPATH / "resource" / "uicon_note_32.png"
 ICOPATH_SNAKE = ROOTPATH / "resource" / "uicon_snake_32.png"
 BOOKPATH = ROOTPATH / "records.json"
 
+ICOPATH_RECORD = ROOTPATH / "resource" / "icon_record_32.png"
+ICOPATH_STAR = ROOTPATH / "resource" / "icon_star_32.png"
+ICOPATH_PENCIL = ROOTPATH / "resource" / "icon_pencil_32.png"
+ICOPATH_HASH = ROOTPATH / "resource" / "icon_hash_32.png"
+
+
 TABLE_COL_INFO = {
     'hyhash': (0, "Hydra Hash"),
     'name': (1, "Title"),

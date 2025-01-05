@@ -308,7 +308,7 @@ def on_path_selected(sender, app_data, record):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
         if record.multsqueezes:
             for msq in record.multsqueezes:
-                with dpg.tree_node(label=f"{msq.notationstr()}  [{msq.chord.rowstr()}]", default_open=False):
+                with dpg.tree_node(label=f"{msq.notationstr()}  {msq.chord.rowstr()}", default_open=False):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
                     dpg.add_text(f"Hit {msq.squeezecount} high-value note{'' if msq.squeezecount == 1 else 's'} last for +{msq.points}.")
         else:
@@ -459,7 +459,7 @@ def view_showsongdetails():
 def refresh_chartfolder():
     folder = appstate.usettings.chartfolder
     lastscan = appstate.usettings.lastscanfolder
-    dpg.set_value("chartfoldertext", f"Chart folder: {folder}")
+    dpg.set_value("chartfoldertext", f"Library folder: {folder}")
     repeat_scan = lastscan != "" and folder == lastscan
     labeltxt = "Refresh scan" if repeat_scan else "Scan charts"
     dpg.configure_item("scanbutton", enabled=folder != "", label=labeltxt)
@@ -562,7 +562,7 @@ def refresh_songdetails():
     dpg.set_value("songdetails_songcharter", appstate.selected_song_row[3])
     dpg.set_value("songdetails_songhash", appstate.selected_song_row[0])
     
-    dpg.configure_item("songdetails", label=f"Song Details - {appstate.usettings.chartmode_key()}")
+    dpg.configure_item("songdetails", label=f"Song Details\t\t\t\t{appstate.usettings.chartmode_key()}")
         
     viewed_record = appstate.get_selected_record()
     
@@ -625,12 +625,18 @@ if __name__ == '__main__':
             
     dpg.create_context()
 
+    def load_icon(path, tag):
+        w, h, c, d = dpg.load_image(str(path))
+        dpg.add_static_texture(width=w, height=h, default_value=d, tag=tag)
+    
     # Textures
     with dpg.texture_registry():
-        w, h, c, d = dpg.load_image(str(hymisc.ICOPATH_NOTE))
-        dpg.add_static_texture(width=w, height=h, default_value=d, tag="icon_note")
-        w, h, c, d = dpg.load_image(str(hymisc.ICOPATH_SNAKE))
-        dpg.add_static_texture(width=w, height=h, default_value=d, tag="icon_snake")
+        load_icon(hymisc.ICOPATH_NOTE, "icon_note")
+        load_icon(hymisc.ICOPATH_SNAKE, "icon_snake")
+        load_icon(hymisc.ICOPATH_RECORD, "icon_record")
+        load_icon(hymisc.ICOPATH_STAR, "icon_star")
+        load_icon(hymisc.ICOPATH_PENCIL, "icon_pencil")
+        load_icon(hymisc.ICOPATH_HASH, "icon_hash")
         
     # Fonts
     with dpg.font_registry():
@@ -645,7 +651,7 @@ if __name__ == '__main__':
     # Main window
     with dpg.window(label="Hydra", tag="mainwindow", show=False) as mainwindow:
         dpg.add_separator(label="Settings")
-        dpg.add_text(f"Chart folder: uninitialized", tag="chartfoldertext")
+        dpg.add_text("Library folder: uninitialized", tag="chartfoldertext")
         with dpg.group(horizontal=True):
             dpg.add_button(label="Select folder...", callback=on_select_chartfolder)
             dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan_charts)
@@ -708,20 +714,22 @@ if __name__ == '__main__':
         with dpg.group(tag="songdetails_upperpanel", horizontal=True, height=170):
             with dpg.child_window(tag="songdetails_songinfo", width=390, horizontal_scrollbar=True):
                 with dpg.group(horizontal=True):
-                    dpg.add_image("icon_note")
+                    dpg.add_image("icon_record")
                     dpg.add_text("Song Title", tag="songdetails_songtitle")
                     dpg.bind_item_font(dpg.last_item(), "MainFont24")
                 with dpg.group(horizontal=True):
-                    dpg.add_image("icon_snake")
+                    dpg.add_image("icon_star")
                     dpg.add_text("Song Artist", tag="songdetails_songartist")
                     dpg.bind_item_font(dpg.last_item(), "MainFont24")
                 with dpg.group(horizontal=True):
-                    dpg.add_image("icon_note")
+                    dpg.add_image("icon_pencil")
                     dpg.add_text("Charter", tag="songdetails_songcharter")
                     dpg.bind_item_font(dpg.last_item(), "MainFont24")
                 with dpg.group(horizontal=True):
-                    dpg.add_image("icon_snake")
-                    dpg.add_text("Hash", tag="songdetails_songhash", color=(180,180,180,255))
+                    dpg.add_image("icon_hash")
+                    with dpg.group():
+                        dpg.add_spacer(height=2)
+                        dpg.add_text("Hash", tag="songdetails_songhash", color=(180,180,180,255))
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
             with dpg.child_window(tag="songdetails_songanalysis", width=340):
                 dpg.add_text("/// Space for future stuff! ///") # Song Traits?
@@ -736,7 +744,7 @@ if __name__ == '__main__':
                     
                     #dpg.add_text("???")
         with dpg.group(tag="songdetails_lowerpanel", horizontal=True, height=-1):
-            dpg.add_text("No paths generated yet.", tag="songdetails_nopathsyet", show=False)
+            dpg.add_text("After analyzing this song, paths will show up here.", tag="songdetails_nopathsyet", show=False, indent=12)
             dpg.add_child_window(tag="songdetails_pathpanel", border=False, width=540)
             with dpg.child_window(tag="songdetails_pathdivider", border=False, width=40, frame_style=True):
                 dpg.add_text(" >>>", pos=(5,0))
