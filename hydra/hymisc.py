@@ -8,7 +8,8 @@ Major version update: Incompatible changes or big milestones.
 Minor version update: Changes that are expected to affect paths/scores.
 Patch version update: UI or other cosmetic changes.
 
-Records with an old major or minor version will be considered stale.
+Records with an old major version will be wiped.
+Records with an old minor version will be marked stale.
 
 """
 HYDRA_VERSION = (0,0,1)

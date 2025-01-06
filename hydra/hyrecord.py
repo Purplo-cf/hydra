@@ -54,6 +54,8 @@ def custom_json_save(obj):
             'backends': obj.backends,
             
             'sqinouts': obj.sqinouts,
+            
+            'e_offset': obj.e_offset,
         }
         
     if isinstance(obj, HydraRecordFrontendSqueeze):
@@ -174,6 +176,8 @@ def custom_json_load(_dict):
         o.backends = _dict['backends']
         
         o.sqinouts = _dict['sqinouts']
+        
+        o.e_offset = _dict['e_offset']
     
         return o
     
@@ -294,11 +298,17 @@ class HydraRecordActivation:
         
         self.sqinouts = []
         
+        self.e_offset = None
+        
     def __repr__(self):
         return f"{self.skips}{''.join(self.sqinouts)}\t{self.timecode.measurestr()}\t{self.sp_meter}\t{self.chord.rowstr()}"
 
     def notationstr(self):
-        return f"{self.skips}{''.join(self.sqinouts)}"
+        e = 'E' if self.is_e_critical() else ''
+        return f"{e}{self.skips}{''.join(self.sqinouts)}"
+        
+    def is_e_critical(self):
+        return self.e_offset < 70 
 
 class HydraRecordMultSqueeze:
     

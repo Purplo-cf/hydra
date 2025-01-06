@@ -56,8 +56,6 @@ class ScoreGraph:
         
         self.acc_multsqueezes = []
         
-        self.acc_latest_sp_time = None
-        
         self.recent_deacts = []
         
         backend_history = [] # Timestamps back to -140ms
@@ -145,7 +143,6 @@ class ScoreGraph:
                 
                 # Save info on the graph
                 self.acc_sp_phrases.append((timestamp.timecode, extension_map))
-                self.acc_latest_sp_time = timestamp.timecode
                 
                 
             # handle acts            
@@ -164,23 +161,6 @@ class ScoreGraph:
                 pending_deacts.remove(timestamp.timecode)
                 
                 self.recent_deacts.append(timestamp.timecode)
-                
-            # Graph builder:
-            #   sp phrases and their timecodes are acc'd and placed on advancement edges
-            #   also, any sp times within 140ms of the edge's destination get put on that node as backend sp.
-            # When a path tries to branch for deactivation, if there any saved sp times and the sp end time is 2 measures * the number of saved sp times,
-            #   then the path is allowed to branch even though
-            #   sp was refreshed. Instead, the deactivated path will start with sp equal to the saved sp times, and the latest activation
-            #   will be marked as a SqOut using the earliest saved sp time. Also, the sq-out notes will have their sp scoring removed.
-            #   The complementary path, which continued in sp, also gets marked SqIn for its latest activation.
-            # When a path typically branches for deactivation, the continue-sp path is typically flagged for removal.
-            #   However, if we look ahead 140 ms and find sp, the path gets to stay and it's marked SqIn.
-            #   The complementary path, which deactivated, is marked SqOut.
-            # Any time a path is marked SqIn or SqOut, it's also marked with the ms threshold that separates In from Out. (Usually 0ms)
-            # To do: just flag a path for removal instead of testing SP conditions, since SqIn will have unusual SP conditions.
-            
-            # New plan: The graph builder will do the harder work of recognizing SqIn/SqOut.
-            # Paths will just be able to read off of nodes whether that node has SqIn/SqOut information.
             
         self.advance_tracks(song.sequence[-1].timecode, song.sequence[-1].chord)
         
@@ -221,11 +201,6 @@ class ScoreGraph:
         base_edge.multsqueezes = copy.copy(self.acc_multsqueezes)
         sp_edge.multsqueezes = copy.copy(self.acc_multsqueezes)
         
-        base_edge.latest_sp_time = self.acc_latest_sp_time
-        sp_edge.latest_sp_time = self.acc_latest_sp_time
-        
-        self.acc_latest_sp_time = None
-        
         self.acc_multsqueezes = []
         
         sp_edge.sp_times = self.acc_sp_phrases
@@ -264,6 +239,7 @@ class ScoreGraph:
         act_edge.frontend = hyrecord.HydraRecordFrontendSqueeze(frontend_chord, frontend_points)
         
         act_edge.activation_fill_length_ticks = fill_length_ticks
+        act_edge.activation_fill_deadline = hymisc.Timecode(act_edge.dest.timecode.ticks - 2 * fill_length_ticks, song)
         
         act_edge.activation_initial_end_times = {sp: act_edge.dest.timecode.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
         
@@ -364,8 +340,11 @@ class ScoreGraphEdge:
         
         self.multsqueezes = []
         
-        self.latest_sp_time = None
         self.activation_fill_length_ticks = None
+        
+        # If SP is not ready at this timecode, then the fill will not appear
+        # even if you have enough SP
+        self.activation_fill_deadline = None
         
         self.sqinout_time = None
         self.sqinout_timing = None
@@ -446,7 +425,9 @@ class GraphPath:
         
         self.sp_end_time = None
     
-        self.latest_sp_time = None
+        self.sp_ready_time = None
+        
+        self.skipped_e_offset = None
 
     # Returns True if other has a conclusively better score, which requires both paths to be at the same timecode and same sp track.
     def strictly_worse(self, other):
@@ -510,13 +491,14 @@ class GraphPath:
             else:
                 # Path isn't in SP: Add SP bars
                # print(f"\tSP: {self.sp} + {len(adv_edge.sp_times)} = {min(max(0, self.sp + len(adv_edge.sp_times)), 4)}.")
+                old_sp = self.sp
                 self.sp = min(self.sp + len(adv_edge.sp_times), 4)
+
+                if old_sp < 2 and self.sp >= 2:
+                    self.sp_ready_time = adv_edge.sp_times[1 - old_sp][0]
  
             self.record.multsqueezes += adv_edge.multsqueezes
-            
-            if adv_edge.latest_sp_time:
-                self.latest_sp_time = adv_edge.latest_sp_time
-            
+                        
             self.currentnode = adv_edge.dest
                     
             
@@ -556,9 +538,19 @@ class GraphPath:
             return False, None
             
         # Check conditions for activation
-        if br_edge.dest.is_sp and (self.sp < 2 or self.sp == 2 and self.latest_sp_time.ticks + 2*br_edge.activation_fill_length_ticks > self.currentnode.timecode.ticks):
-            #print(f"\tActivation conditions not met: sp = {self.sp}")
-            return False, None
+        if br_edge.dest.is_sp:
+            if self.sp < 2:
+                # Not enough SP
+                return False, None
+            # self.sp_ready_time must be before this activation fill's deadline
+            e_offset = br_edge.activation_fill_deadline.ms - self.sp_ready_time.ms
+
+            # Thanks to the timing window, the cutoff is -70ms not 0ms
+            if e_offset < -70:
+                return False, None
+                
+            # Valid activation.
+            # To do: Better structure than this fallthrough-y stuff.
         
         # Check conditions for deactivation
         sq_out = False
@@ -580,7 +572,6 @@ class GraphPath:
         
         if br_edge.dest.is_sp:
             # Activation
-            #print("\tActivating!")
             new_path.record.activations.append(hyrecord.HydraRecordActivation())
             new_path.record.activations[-1].skips = self.currentskips
             new_path.record.activations[-1].timecode = self.currentnode.timecode
@@ -590,11 +581,19 @@ class GraphPath:
             new_path.record.activations[-1].frontend = br_edge.frontend
             new_path.record.score_sp += br_edge.frontend.points
             
+            new_path.record.activations[-1].e_offset = self.skipped_e_offset if self.skipped_e_offset is not None else e_offset
+            new_path.skipped_e_offset = None
+            
+            new_path.sp_ready_time = None
             new_path.sp_end_time = br_edge.activation_initial_end_times[self.sp]
             
             #print(f"\tNewly-branched path has an sp end time of {new_path.sp_end_time} (its current time is {new_path.currentnode.timecode})")
             
             self.currentskips += 1
+            
+            # Even if the E fill is skipped, the eventual activation should know about it
+            if self.skipped_e_offset is None:
+                self.skipped_e_offset = e_offset
         
         else:
             # Deactivation

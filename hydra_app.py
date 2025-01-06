@@ -322,6 +322,8 @@ def on_path_selected(sender, app_data, record):
                 with dpg.tree_node(label=f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}", default_open=False, indent=4):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
                     with dpg.group(indent=12):
+                        if act.is_e_critical():
+                            dpg.add_text(f"Calibration fill: {act.e_offset:.2f}ms")
                         dpg.add_text(f"Frontend: {act.frontend.chord.rowstr() if act.frontend is not None else "None"}")
                         if act.backends:
                             dpg.add_text("Backends:")
@@ -593,7 +595,7 @@ def refresh_songdetails():
             current_treenode = dpg.add_tree_node(label=f"{current_score:,}", parent="songdetails_pathpanel", default_open=True)
             dpg.bind_item_font(current_treenode, "MonoFont")
         
-        pathselectable = dpg.add_selectable(label=p.pathstring(), parent=current_treenode, callback=on_path_selected, user_data=p, default_value=i==0)
+        pathselectable = dpg.add_selectable(label=p.pathstring(), parent=current_treenode, callback=on_path_selected, user_data=p, default_value=i==0, indent=16)
         if i == 0:
             autoselect = pathselectable
         
