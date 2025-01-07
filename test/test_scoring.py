@@ -21,7 +21,7 @@ class TestScoring(unittest.TestCase):
     
     def _test_scoring(self, chartname, hyhash):
         chartpath = self.chartfolder + os.sep + chartname
-        record = hyutil.run_chart(chartpath, 'expert', True, True)
+        record = hyutil.run_chart(chartpath, 'expert', True, True, 'scores', 0)
         soln_record = self.book[hyhash]['records']['Expert Pro Drums, 2x Bass']
         
         path = record.paths[0]

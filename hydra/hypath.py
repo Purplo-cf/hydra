@@ -365,7 +365,7 @@ class GraphPather:
     def __init__(self):
         self.record = hyrecord.HydraRecord()
         
-    def read(self, graph):
+    def read(self, graph, depth_mode, depth_value):
         paths = [GraphPath()]
         paths[0].currentnode = graph.start
         
@@ -387,10 +387,9 @@ class GraphPather:
             # Update the path list with branching results
             paths = [p for p in paths if p not in terminated_paths] + new_paths
             
-            # Pruning: removing paths that are strictly worse.
-            # Customization of this rule, coming soon.
-            # Also maybe something better than this n^2 thing.
-            paths = [p for p in paths if not any([p.strictly_worse(other) for other in paths])]
+            paths = self.reduced_paths(paths, depth_mode, depth_value)
+        
+        
 
         # Order the completed paths by score
         paths.sort(key=lambda p: p.record.totalscore(), reverse=True)
@@ -404,7 +403,34 @@ class GraphPather:
 
         # Fill out more fields on hyrecord
         #self.record.hyhash = graph.songhash
+    
+    def reduced_paths(self, paths, depth_mode, depth_value):
+        """Reduce the number of paths along the way by eliminating paths
+        that are definitely not as good as another path.
+        
+        While partway through the song, sometimes paths aren't comparable
+        because their SP situations are different, but a lot of the time they
+        *are* comparable.
+        
+        Depth parameters allow extra paths to be held, to end up with the
+        optimal path(s) plus some extra runner-up paths.
+        
+        depth_mode:
+            'points': Keep paths within {depth_value} points of optimal.
+            'scores': Keep paths for {depth_value} scores below optimal.
+        
+        """
+        # Since all the paths are at the same point in the song, the only
+        # thing that can make 2 paths not comparable is SP: SP represents
+        # an unknown amount of points that has yet to be realized. If a path
+        # has less points but more SP, it's unclear if the path is better or
+        # worse at this time.
+        #
 
+        #paths = [p for p in paths if not any([p.strictly_worse(other) for other in paths])]
+        
+        return paths
+        
 class GraphPath:
     """Quick early note:
     

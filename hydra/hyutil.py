@@ -4,6 +4,7 @@ import sqlite3
 import hashlib
 import configparser
 import pathlib
+import time
 
 from . import hypath
 from . import hyrecord
@@ -127,7 +128,7 @@ def discover_charts(rootname, cb_chartfound=None):
             
     return [tuple(info) for info in found_by_dirname.values() if all(info)]
     
-def run_chart(filepath, m_difficulty, m_pro, m_bass2x):
+def run_chart(filepath, m_difficulty, m_pro, m_bass2x, d_mode, d_value):
     """Current chain to go from chart file to hyrecord.
     
     First parses either chart format to a Song object,
@@ -135,6 +136,7 @@ def run_chart(filepath, m_difficulty, m_pro, m_bass2x):
     feeds that into a GraphPather.
     
     """
+    t0 = time.perf_counter()
     if filepath.endswith(".mid"):
         song = hysong.MidiParser().parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     elif filepath.endswith(".chart"):
@@ -145,6 +147,9 @@ def run_chart(filepath, m_difficulty, m_pro, m_bass2x):
     graph = hypath.ScoreGraph(song)
     
     pather = hypath.GraphPather()
-    pather.read(graph)
+    pather.read(graph, d_mode, d_value)
+    
+    t1 = time.perf_counter()
+    print(f"Ran {len(pather.record.paths)} paths in {t1 - t0:3f} seconds.")
     
     return pather.record

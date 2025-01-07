@@ -378,7 +378,11 @@ def on_run_chart(sender, app_data, user_data):
     dpg.show_item("songdetails_progresspanel")
     # run chart
     chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0]
-    record = hyutil.run_chart(chartfile, appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x)
+    record = hyutil.run_chart(
+        chartfile,
+        appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
+        appstate.usettings.depth_mode, appstate.usettings.depth_value
+    )
     
     appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
     

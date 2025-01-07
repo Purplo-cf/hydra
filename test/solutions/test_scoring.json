@@ -100,7 +100,8 @@
                                         "offset_ms": 0.0
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             },
                             {
                                 "__obj__": "activation",
@@ -206,7 +207,8 @@
                                         "offset_ms": 0.0
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             },
                             {
                                 "__obj__": "activation",
@@ -317,7 +319,8 @@
                                         "offset_ms": 0.0
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             },
                             {
                                 "__obj__": "activation",
@@ -454,7 +457,8 @@
                                         "offset_ms": 0.0
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             }
                         ],
                         "score_base": 55390,
@@ -696,7 +700,8 @@
                                         "offset_ms": 108.92846250000002
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             },
                             {
                                 "__obj__": "activation",
@@ -854,7 +859,8 @@
                                         "offset_ms": 81.08100000000559
                                     }
                                 ],
-                                "sqinouts": []
+                                "sqinouts": [],
+                                "e_offset": 0
                             }
                         ],
                         "score_base": 111235,
