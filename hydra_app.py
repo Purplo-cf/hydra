@@ -381,7 +381,7 @@ def on_run_chart(sender, app_data, user_data):
     record = hyutil.run_chart(
         chartfile,
         appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
-        appstate.usettings.depth_mode, appstate.usettings.depth_value
+        appstate.usettings.depth_mode, int(appstate.usettings.depth_value)
     )
     
     appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])

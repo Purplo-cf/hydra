@@ -425,9 +425,73 @@ class GraphPather:
         # an unknown amount of points that has yet to be realized. If a path
         # has less points but more SP, it's unclear if the path is better or
         # worse at this time.
+        # 
+        # At the end of the song, all paths of course become comparable
+        # by their final scores.
         #
+        # Both Active SP: Only comparable if same sp value.
+        # Both Inactive SP: Score and SP value comparisons must not contradict.
+        # Different SP Active: Not comparable
 
-        #paths = [p for p in paths if not any([p.strictly_worse(other) for other in paths])]
+        paths_to_better_scores = {p: set() for p in paths}
+        
+        # O(n^2), it is what it is
+        paths_to_remove = set()
+        for i, p in enumerate(paths):
+            for q in paths[i+1:]:
+                if p.is_active_sp() != q.is_active_sp():
+                    continue
+                    
+                p_sp = 0 if p.is_complete() else (p.sp_end_time if p.is_active_sp() else p.sp)
+                q_sp = 0 if q.is_complete() else (q.sp_end_time if q.is_active_sp() else q.sp)
+                
+                p_score = p.record.totalscore()
+                q_score = q.record.totalscore()
+                    
+                if p.is_active_sp():
+                    if p_sp != q_sp:
+                        continue
+                    diff = q_score - p_score
+                    if diff < 0:
+                        better, worse = (p, q)
+                    elif diff > 0:
+                        better, worse = (q, p)
+                    else:
+                        continue
+                else:
+                    cmp = 0
+                    sp_diff = q_sp - p_sp
+                    if sp_diff > 0:
+                        cmp += 1
+                    elif sp_diff < 0:
+                        cmp -= 1
+                    score_diff = q_score - p_score
+                    if score_diff > 0:
+                        cmp += 1
+                    elif score_diff < 0:
+                        cmp -= 1
+                    
+                    if cmp < 0:
+                        better, worse = (p, q)
+                    elif cmp > 0:
+                        better, worse = (q, p)
+                    else:
+                        continue
+                    
+                # Worse path also needs to be outside the depth parameter
+                # in order to be removed
+                if depth_mode == 'points' and worse.record.totalscore() + depth_value < better.record.totalscore():
+                    paths_to_remove.add(worse)
+                    
+                paths_to_better_scores[worse].add(better.record.totalscore())
+        
+        
+        if depth_mode == 'scores':
+            for p, betterscores in paths_to_better_scores.items():
+                if len(betterscores) > depth_value:
+                    paths_to_remove.add(p)
+        
+        paths = list(filter(lambda p: p not in paths_to_remove, paths))
         
         return paths
         
@@ -472,7 +536,6 @@ class GraphPath:
         if self_sp_active != other_sp_active:
             return False 
 
-        # Same sp value requirement
         self_sp_value = (self.sp_end_time if self_sp_active else self.sp) if self.currentnode else 0
         other_sp_value = (other.sp_end_time if other_sp_active else other.sp) if other.currentnode else 0
         
@@ -664,6 +727,11 @@ class GraphPath:
             
     def is_complete(self):
         return self.currentnode == None
+        
+    def is_active_sp(self):
+        return self.currentnode.is_sp if self.currentnode else False
+        
+
      
 
 def sourcescores(chord, combo):
