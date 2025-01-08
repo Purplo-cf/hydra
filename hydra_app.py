@@ -83,7 +83,7 @@ class HyAppUserSettings:
             ('view_difficulty', 'Expert'),
             ('view_prodrums', 'True'),
             ('view_bass2x', 'True'),
-            ('depth_value', '5'),
+            ('depth_value', '4'),
             ('depth_mode', 'scores'),
         ]:
             if key not in loadedsettings:
@@ -742,7 +742,7 @@ if __name__ == '__main__':
             with dpg.child_window(tag="songdetails_controls", width=-1):
                 with dpg.group(horizontal=True):
                     dpg.add_text("Extra depth below optimal:")
-                    dpg.add_input_int(tag="inp_depthvalue", width=140, default_value=1, callback=on_depth_value)
+                    dpg.add_input_int(tag="inp_depthvalue", min_value=0, min_clamped=True, width=140, default_value=1, callback=on_depth_value)
                     dpg.add_combo(("scores", "points"), tag="inp_depthmode", default_value="scores", width=80, callback=on_depth_mode)
                 dpg.add_spacer(height=0)
                 dpg.add_button(tag="runbutton", label="Analyze paths!", width=-1,height=-1, callback=on_run_chart)
