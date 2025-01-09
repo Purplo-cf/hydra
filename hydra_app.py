@@ -431,8 +431,8 @@ def view_main():
     to view the song library.
     
     """
-    dpg.show_item("mainwindow")
-    dpg.set_primary_window("mainwindow", True)
+    dpg.hide_item("preload")
+    dpg.show_item("mainwindowcontent")
     
     dpg.configure_item("scanprogress", width=-1, height=-1)
     
@@ -624,13 +624,7 @@ def all_table_row_selectables():
 
 """ Main """
 
-
-if __name__ == '__main__':
-    # appstate is visible to the top-level functions
-    appstate = HyAppState()
-            
-    dpg.create_context()
-
+def build_main_ui():
     def load_icon(path, tag):
         w, h, c, d = dpg.load_image(str(path))
         dpg.add_static_texture(width=w, height=h, default_value=d, tag=tag)
@@ -654,8 +648,8 @@ if __name__ == '__main__':
         
     dpg.bind_font("MainFont")
     
-    # Main window
-    with dpg.window(label="Hydra", tag="mainwindow", show=False) as mainwindow:
+    # Add main content to main window
+    with dpg.group(tag="mainwindowcontent", parent="mainwindow", show=False):
         dpg.add_separator(label="Settings")
         dpg.add_text("Library folder: uninitialized", tag="chartfoldertext")
         with dpg.group(horizontal=True):
@@ -784,6 +778,14 @@ if __name__ == '__main__':
 
     dpg.bind_theme(standard_theme)
     
+    dpg.set_viewport_resize_callback(on_viewport_resize)
+
+
+if __name__ == '__main__':
+    # appstate is visible to the top-level functions
+    appstate = HyAppState()
+            
+    dpg.create_context()
     
     # Begin UI
     icopath = str(hymisc.ICOPATH)
@@ -791,12 +793,33 @@ if __name__ == '__main__':
 
     #demo.show_demo()
     #dpg.show_font_manager()
-    
-    dpg.set_viewport_resize_callback(on_viewport_resize)
 
     dpg.setup_dearpygui()
+    
+    with dpg.window(label="Hydra", tag="mainwindow", show=True):
+        with dpg.group(tag="preload"):
+            with dpg.child_window(frame_style=True, width=280, height=100, pos=(500,280)):
+                dpg.add_text("Loading...", pos=(110,38))
+                
+    dpg.set_primary_window("mainwindow", True)
+    
     dpg.show_viewport()
-    view_main()
+
+    # Spread some setup across the first few frames
+    setupframe = 0
+    while dpg.is_dearpygui_running():
+        dpg.render_dearpygui_frame()
+        
+        if setupframe == 1:
+            # Loading window has rendered, so start some hitch-y setup
+            build_main_ui()
+        elif setupframe == 2:
+            # Hitch over and everything's ready now
+            view_main()
+        
+        if setupframe <= 2:
+            setupframe += 1
+            
     dpg.start_dearpygui()
 
     # End UI
