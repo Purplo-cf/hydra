@@ -163,9 +163,12 @@ class Timecode:
     def __repr__(self):
         return str(self.ticks)
     
-    def measurestr(self):
+    def measurestr(self, fixed_width=False):
         m, b, t = self.measure_beats_ticks
-        return f"m{m + 1}.{b + 1}.{t}"
+        if fixed_width:
+            return f"{f"m{m+1}": >5}.{b + 1}.{t: <3}"
+        else:
+            return f"m{m + 1}.{b + 1}.{t}"        
     
     def plusmeasure(self, add_measures, song):
         """Returns a new Timecode offset by the given number of measures.

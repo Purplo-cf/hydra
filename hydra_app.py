@@ -202,11 +202,16 @@ class HyAppState:
 
 
 def on_viewport_resize():
-    width = dpg.get_viewport_width() - 22 - 400
+    # Loading modal sizes: Heavily inset window
+    width = dpg.get_viewport_width() - 22 - 800
     height = 158
-    dpg.configure_item("scanprogress", pos=(200, 200),
+    dpg.configure_item("scanprogress", pos=(400, 200),
+                        width=width, height=height)
+    height = 125
+    dpg.configure_item("songdetails_progresspanel", pos=(400, 200),
                         width=width, height=height)
     
+    # Song details sizes: Slightly inset window
     width = dpg.get_viewport_width() - 22 - 80
     height = dpg.get_viewport_height() - 22 - 80
     dpg.configure_item("songdetails", pos=(40, 40),
@@ -242,6 +247,7 @@ def on_depth_mode(sender, app_data):
     appstate.usettings.depth_mode = app_data
     
 def on_scan_charts():
+    on_viewport_resize()
     dpg.show_item("scanprogress")
     count = hyutil.scan_charts(appstate.usettings.chartfolder,
                        progress_discoveringcharts,
@@ -376,19 +382,21 @@ def on_run_chart(sender, app_data, user_data):
     dpg.hide_item("songdetails_upperpanel")
     dpg.hide_item("songdetails_lowerpanel")
     dpg.show_item("songdetails_progresspanel")
+    reset_analyze_modal()
     # run chart
     chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0]
     record = hyutil.run_chart(
         chartfile,
         appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
-        appstate.usettings.depth_mode, int(appstate.usettings.depth_value)
+        appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
+        on_analyze_parsecomplete, on_analyze_pathsprogress, on_analyze_pathscomplete
     )
     
     appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
     
     appstate.hyrecordbook.add_record(appstate.selected_song_row[0], appstate.usettings.chartmode_key(), record)
     # pause
-    time.sleep(1.5)
+    time.sleep(0.5)
     # update record displays
     refresh_tableview()
     refresh_songdetails()
@@ -461,6 +469,27 @@ def view_showsongdetails():
     
 """UI population"""
 
+
+def reset_analyze_modal():
+    dpg.hide_item("analyze_opt_label")
+    dpg.hide_item("analyze_opt_bar")
+    dpg.hide_item("analyze_opt_done")
+    
+    dpg.set_value("analyze_opt_bar", 0)
+    
+def on_analyze_parsecomplete():
+    dpg.show_item("analyze_opt_label")
+    dpg.show_item("analyze_opt_bar")
+    
+def on_analyze_pathsprogress(timecode, progressf):
+    s = timecode.measurestr(fixed_width=True) if timecode else ""
+    dpg.configure_item("analyze_opt_bar", overlay=s)
+    dpg.set_value("analyze_opt_bar", progressf)
+    
+def on_analyze_pathscomplete():
+    dpg.configure_item("analyze_opt_bar", overlay="")
+    dpg.set_value("analyze_opt_bar", 1)
+    dpg.show_item("analyze_opt_done")
 
 def refresh_chartfolder():
     folder = appstate.usettings.chartfolder
@@ -703,11 +732,12 @@ def build_main_ui():
             tag="select_chartfolder", width=700 ,height=400)
 
     with dpg.window(tag="scanprogress", show=False, modal=True, no_title_bar=True, no_close=True, no_resize=True, no_move=True):
-        dpg.add_text("Discovering charts...", tag="scanprogress_discovering")
-        dpg.add_text("0 charts found.", tag="scanprogress_chartsfound", show=False)
-        dpg.add_text("Adding to library...", tag="scanprogress_bartext", show=False)
-        dpg.add_progress_bar(tag="scanprogress_bar", show=False, width=-1)
-        dpg.add_text("Done!", tag="scanprogress_done", show=False)
+        with dpg.group(indent=16):
+            dpg.add_text("Discovering charts...", tag="scanprogress_discovering")
+            dpg.add_text("0 charts found.", tag="scanprogress_chartsfound", show=False)
+            dpg.add_text("Adding to library...", tag="scanprogress_bartext", show=False)
+            dpg.add_progress_bar(tag="scanprogress_bar", show=False, width=-18)
+            dpg.add_text("Done!", tag="scanprogress_done", show=False)
     
     
     with dpg.window(label="Song Details", tag="songdetails", show=False, modal=True, no_title_bar=False, no_close=False, no_resize=True, no_move=True):
@@ -752,8 +782,14 @@ def build_main_ui():
             with dpg.child_window(tag="songdetails_pathdetails", border=False, width=-1):
                 dpg.add_text("Filler - Path Details")
         #dpg.add_text("Song Name", tag="songdetails_name")
-        with dpg.group(tag="songdetails_progresspanel", show=False):
-            dpg.add_text("Test")
+        with dpg.child_window(tag="songdetails_progresspanel", frame_style=True, show=False):
+            #with dpg.child_window(tag="songdetails_progresscontent")
+            with dpg.group(indent=16):
+                dpg.add_text("Parsing chart...", tag="analyze_parse_label")
+                dpg.add_text("Running paths...", tag="analyze_opt_label", show=False)
+                dpg.add_progress_bar(tag="analyze_opt_bar", show=False, width=-18)
+                dpg.bind_item_font("analyze_opt_bar", "MonoFont")
+                dpg.add_text("Done!", tag="analyze_opt_done", show=False)
 
     # Theme
     with dpg.theme() as standard_theme:

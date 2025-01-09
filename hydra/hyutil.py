@@ -128,7 +128,8 @@ def discover_charts(rootname, cb_chartfound=None):
             
     return [tuple(info) for info in found_by_dirname.values() if all(info)]
     
-def run_chart(filepath, m_difficulty, m_pro, m_bass2x, d_mode, d_value):
+def run_chart(filepath, m_difficulty, m_pro, m_bass2x, d_mode, d_value,
+                cb_parsecomplete=None, cb_pathsprogress=None, cb_pathscomplete=None):
     """Current chain to go from chart file to hyrecord.
     
     First parses either chart format to a Song object,
@@ -144,12 +145,18 @@ def run_chart(filepath, m_difficulty, m_pro, m_bass2x, d_mode, d_value):
     else:
         raise hymisc.ChartFileError("Unexpected chart filetype")
     
+    if cb_parsecomplete:
+        cb_parsecomplete()
+    
     graph = hypath.ScoreGraph(song)
     
     pather = hypath.GraphPather()
-    pather.read(graph, d_mode, d_value)
+    pather.read(graph, d_mode, d_value, cb_pathsprogress)
     
     t1 = time.perf_counter()
     print(f"Ran {len(pather.record.paths)} paths in {t1 - t0:3f} seconds.")
+    
+    if cb_pathscomplete:
+        cb_pathscomplete()
     
     return pather.record

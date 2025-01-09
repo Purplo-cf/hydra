@@ -43,6 +43,8 @@ class ScoreGraph:
         self.start = self.base_track_head
         pending_deacts = set([])
         
+        self.length = 0
+        
         self.acc_notecount = 0
         self.acc_basescore = 0
         self.acc_comboscore = 0
@@ -169,6 +171,8 @@ class ScoreGraph:
     def advance_tracks(self, timecode, chord):
         if self.base_track_head.timecode >= timecode: 
             return
+            
+        self.length += 1
             
         base_edge = ScoreGraphEdge()
         sp_edge = ScoreGraphEdge()
@@ -365,10 +369,11 @@ class GraphPather:
     def __init__(self):
         self.record = hyrecord.HydraRecord()
         
-    def read(self, graph, depth_mode, depth_value):
+    def read(self, graph, depth_mode, depth_value, cb_pathsprogress=None):
         paths = [GraphPath()]
         paths[0].currentnode = graph.start
         
+        length = 0
         while any([not p.is_complete() for p in paths]):
             # Advance paths
             for p in paths:
@@ -389,7 +394,10 @@ class GraphPather:
             
             paths = self.reduced_paths(paths, depth_mode, depth_value)
         
-        
+            length += 1
+            if cb_pathsprogress:
+                tc = paths[0].currentnode.timecode if paths[0].currentnode else None
+                cb_pathsprogress(tc, length / graph.length)
 
         # Order the completed paths by score
         paths.sort(key=lambda p: p.record.totalscore(), reverse=True)
