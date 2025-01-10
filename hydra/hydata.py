@@ -14,7 +14,7 @@ def json_save(obj):
             'paths': obj.paths,
         }
     
-    if isinstance(obj, HydraRecordPath):
+    if isinstance(obj, Path):
         return {
             '__obj__': 'path',
         
@@ -30,8 +30,8 @@ def json_save(obj):
             
             'ref_totalscore': obj.totalscore(),
         }
-        
-    if isinstance(obj, HydraRecordMultSqueeze):
+    
+    if isinstance(obj, MultSqueeze):
         return {
             '__obj__': 'msq',
         
@@ -40,8 +40,8 @@ def json_save(obj):
             'squeezecount': obj.squeezecount,
             'points': obj.points,
         }
-        
-    if isinstance(obj, HydraRecordActivation):
+    
+    if isinstance(obj, Activation):
         return {
             '__obj__': 'activation',
         
@@ -57,16 +57,16 @@ def json_save(obj):
             
             'e_offset': obj.e_offset,
         }
-        
-    if isinstance(obj, HydraRecordFrontendSqueeze):
+    
+    if isinstance(obj, FrontendSqueeze):
         return {
             '__obj__': 'fsq',
         
             'chord': obj.chord,
             'points': obj.points,
         }
-        
-    if isinstance(obj, HydraRecordBackendSqueeze):
+    
+    if isinstance(obj, BackendSqueeze):
         return {
             '__obj__': 'bsq',
         
@@ -76,19 +76,19 @@ def json_save(obj):
             'sqout_points': obj.sqout_points,
             'offset_ms': obj.offset_ms,
     }
-        
-    if isinstance(obj, HydraRecordChord):
+    
+    if isinstance(obj, Chord):
         return {
             '__obj__': 'chord',
         
-            'kick': obj.notemap[HydraRecordNoteColor.KICK],
-            'red': obj.notemap[HydraRecordNoteColor.RED],
-            'yellow': obj.notemap[HydraRecordNoteColor.YELLOW],
-            'blue': obj.notemap[HydraRecordNoteColor.BLUE],
-            'green': obj.notemap[HydraRecordNoteColor.GREEN],
+            'kick': obj.notemap[NoteColor.KICK],
+            'red': obj.notemap[NoteColor.RED],
+            'yellow': obj.notemap[NoteColor.YELLOW],
+            'blue': obj.notemap[NoteColor.BLUE],
+            'green': obj.notemap[NoteColor.GREEN],
         }
-        
-    if isinstance(obj, HydraRecordChordNote):
+    
+    if isinstance(obj, ChordNote):
         return {
             '__obj__': 'note',
         
@@ -97,19 +97,19 @@ def json_save(obj):
             'is_2x': obj.is2x,
         }
     
-    if isinstance(obj, HydraRecordNoteCymbalType):
+    if isinstance(obj, NoteCymbalType):
         return {
-            HydraRecordNoteCymbalType.NORMAL: 'normal',
-            HydraRecordNoteCymbalType.CYMBAL: 'cymbal',
+            NoteCymbalType.NORMAL: 'normal',
+            NoteCymbalType.CYMBAL: 'cymbal',
         }[obj]
-        
-    if isinstance(obj, HydraRecordNoteDynamicType):
+    
+    if isinstance(obj, NoteDynamicType):
         return {
-            HydraRecordNoteDynamicType.NORMAL: 'normal',
-            HydraRecordNoteDynamicType.GHOST: 'ghost',
-            HydraRecordNoteDynamicType.ACCENT: 'accent',
+            NoteDynamicType.NORMAL: 'normal',
+            NoteDynamicType.GHOST: 'ghost',
+            NoteDynamicType.ACCENT: 'accent',
         }[obj]
-        
+    
     if isinstance(obj, hymisc.Timecode):
         return {
             '__obj__': 'timecode',
@@ -124,10 +124,9 @@ def json_save(obj):
                         
             'ref_measure': obj.measurestr(),
         }
-        
+    
     raise TypeError(f"Unhanded type: {type(obj)}")
     
-
 def json_load(_dict):
     """Dict --> Object conversion."""
     try:
@@ -141,9 +140,9 @@ def json_load(_dict):
         o.paths = _dict['paths']
         
         return o
-        
+    
     if obj_code == 'path':
-        o = HydraRecordPath()
+        o = Path()
         o.multsqueezes = _dict['multsqueezes']
         o.activations = _dict['activations']
         
@@ -155,9 +154,9 @@ def json_load(_dict):
         o.score_ghosts = _dict['score_ghosts']
         
         return o
-        
+    
     if obj_code == 'msq':
-        o = HydraRecordMultSqueeze()
+        o = MultSqueeze()
         o.multiplier = _dict['multiplier']
         o.chord = _dict['chord']
         o.squeezecount = _dict['squeezecount']
@@ -166,7 +165,7 @@ def json_load(_dict):
         return o
     
     if obj_code == 'activation':
-        o = HydraRecordActivation()
+        o = Activation()
         o.skips = _dict['skips']
         o.timecode = _dict['timecode']
         o.chord = _dict['chord']
@@ -182,12 +181,12 @@ def json_load(_dict):
         return o
     
     if obj_code == 'fsq':
-        o = HydraRecordFrontendSqueeze(_dict['chord'], _dict['points'])
+        o = FrontendSqueeze(_dict['chord'], _dict['points'])
 
         return o
-        
+    
     if obj_code == 'bsq':
-        o = HydraRecordBackendSqueeze(
+        o = BackendSqueeze(
             _dict['timecode'],
             _dict['chord'],
             _dict['points'],
@@ -196,15 +195,15 @@ def json_load(_dict):
         o.offset_ms = _dict['offset_ms']
         
         return o
-        
+    
     if obj_code == 'chord':
-        o = HydraRecordChord()
+        o = Chord()
         o.notemap = {
-            HydraRecordNoteColor.KICK: _dict['kick'],
-            HydraRecordNoteColor.RED: _dict['red'],
-            HydraRecordNoteColor.YELLOW: _dict['yellow'],
-            HydraRecordNoteColor.BLUE: _dict['blue'],
-            HydraRecordNoteColor.GREEN: _dict['green'],
+            NoteColor.KICK: _dict['kick'],
+            NoteColor.RED: _dict['red'],
+            NoteColor.YELLOW: _dict['yellow'],
+            NoteColor.BLUE: _dict['blue'],
+            NoteColor.GREEN: _dict['green'],
         }
         
         for c, note in o.notemap.items():
@@ -212,25 +211,25 @@ def json_load(_dict):
                 note.colortype = c
         
         return o
-        
+    
     if obj_code == 'note':
-        o = HydraRecordChordNote()
+        o = ChordNote()
         
         o.cymbaltype = {
-            'normal': HydraRecordNoteCymbalType.NORMAL,
-            'cymbal': HydraRecordNoteCymbalType.CYMBAL,
+            'normal': NoteCymbalType.NORMAL,
+            'cymbal': NoteCymbalType.CYMBAL,
         }[_dict['cymbal']]
         
         o.dynamictype = {
-            'normal': HydraRecordNoteDynamicType.NORMAL,
-            'ghost': HydraRecordNoteDynamicType.GHOST,
-            'accent': HydraRecordNoteDynamicType.ACCENT,
+            'normal': NoteDynamicType.NORMAL,
+            'ghost': NoteDynamicType.GHOST,
+            'accent': NoteDynamicType.ACCENT,
         }[_dict['dynamic']]
         
         o.is2x = _dict['is_2x']
         
         return o
-            
+    
     if obj_code == 'timecode':
         o = hymisc.Timecode(_dict['tick'], None)
         o.measure_beats_ticks = _dict['mbt']
@@ -241,15 +240,16 @@ def json_load(_dict):
     
     raise TypeError(f"Tried to load unhandled JSON object: {_dict}")
 
+
 class HydraRecord:
     """A "printout" representing one analyzed chart.
     
     Each unique chart file (hash) can have 1 unique HydraRecord per combination
     of difficulty, pro/non-pro, and 2x/1x bass (chartmode).
     
-    Multiple paths for a given chart are grouped within the same hyrecord.
+    Multiple paths for a given chart are grouped within the same hydata.
     
-    A hyrecord stores the version of Hydra that created it.
+    A hydata stores the version of Hydra that created it.
     
     """
     def __init__(self):   
@@ -260,7 +260,7 @@ class HydraRecord:
         self.paths = []
 
 
-class HydraRecordPath:
+class Path:
     
     def __init__(self):
         # Path characteristics
@@ -274,18 +274,21 @@ class HydraRecordPath:
         self.score_solo = 0 
         self.score_accents = 0
         self.score_ghosts = 0
-       
+   
     def totalscore(self):
-        return (self.score_base + self.score_combo + self.score_sp
-                + self.score_solo + self.score_accents + self.score_ghosts)
-                
+        return (
+            self.score_base + self.score_combo + self.score_sp
+            + self.score_solo + self.score_accents + self.score_ghosts
+        )
+    
     def pathstring(self):
         if self.activations:
             return ' '.join([str(a.notationstr()) for a in self.activations])
         else:
             return "(No activations.)"
-            
-class HydraRecordActivation:
+
+
+class Activation:
     
     def __init__(self):
         self.skips = None
@@ -299,41 +302,41 @@ class HydraRecordActivation:
         self.sqinouts = []
         
         self.e_offset = None
-        
-    def __repr__(self):
-        return f"{self.skips}{''.join(self.sqinouts)}\t{self.timecode.measurestr()}\t{self.sp_meter}\t{self.chord.rowstr()}"
-
+    
     def notationstr(self):
         e = 'E' if self.is_e_critical() else ''
         return f"{e}{self.skips}{''.join(self.sqinouts)}"
-        
+    
     def is_e_critical(self):
         return self.e_offset < 70 
 
-class HydraRecordMultSqueeze:
+
+class MultSqueeze:
+    """Multiplier squeeze: When the combo multiplier goes up partway through a
+    chord, and that chord has notes with different values, the higher-value
+    notes should be hit on the higher combo multiplier.
     
+    This usually results in +15s for cymbal squeezes or +50s for dynamic
+    squeezes.
+    """
     def __init__(self):
-        # This squeeze happens while hitting this multiplier (2, 3, or 4)
         self.multiplier = None
-        # This squeeze happens while hitting this chord
         self.chord = None
-        # This many notes in the chord can be squeezed
         self.squeezecount = None
-        # The base points gained from performing this squeeze fully vs. completely missing it.
         self.points = None
-        
+    
     def notationstr(self):
         return f"{self.multiplier}x"
 
 
-class HydraRecordFrontendSqueeze:
+class FrontendSqueeze:
     
     def __init__(self, chord, points):
         self.chord = chord
         self.points = points
 
 
-class HydraRecordBackendSqueeze:
+class BackendSqueeze:
     def __init__(self, timecode, chord, points, sqout_points):
         self.timecode = timecode
         self.chord = chord
@@ -341,9 +344,8 @@ class HydraRecordBackendSqueeze:
         self.sqout_points = sqout_points
         self.offset_ms = None
 
-
     def ratingstr(self):
-        # ms thresholds and the label for the adjacent region on the negative side
+        """Hydra ratings for how hard the squeeze's timing is."""
         thresholds = [
             (-140, "Free"),
             (-105, "Free"),
@@ -365,7 +367,7 @@ class HydraRecordBackendSqueeze:
         return max_rating
 
 
-class HydraRecordNoteColor(Enum):
+class NoteColor(Enum):
     """Representation of a note color.
     
     Note colors actually determine what types of notes are possible.
@@ -381,55 +383,55 @@ class HydraRecordNoteColor(Enum):
     
     def allows_cymbals(self):
         return self in [
-            HydraRecordNoteColor.YELLOW,
-            HydraRecordNoteColor.BLUE,
-            HydraRecordNoteColor.GREEN
+            NoteColor.YELLOW,
+            NoteColor.BLUE,
+            NoteColor.GREEN
         ]
             
-        
+    
     def allows_dynamics(self):
         return self in [
-            HydraRecordNoteColor.RED,
-            HydraRecordNoteColor.YELLOW,
-            HydraRecordNoteColor.BLUE,
-            HydraRecordNoteColor.GREEN
+            NoteColor.RED,
+            NoteColor.YELLOW,
+            NoteColor.BLUE,
+            NoteColor.GREEN
         ]
-        
+    
     def __str__(self):
         match self:
-            case HydraRecordNoteColor.KICK:
+            case NoteColor.KICK:
                 return "Kick"
-            case HydraRecordNoteColor.RED:
+            case NoteColor.RED:
                 return "Red"
-            case HydraRecordNoteColor.YELLOW:
+            case NoteColor.YELLOW:
                 return "Yellow"
-            case HydraRecordNoteColor.BLUE:
+            case NoteColor.BLUE:
                 return "Blue"
-            case HydraRecordNoteColor.GREEN:
+            case NoteColor.GREEN:
                 return "Green"
-                
+    
     def notationstr(self):
         match self:
-            case HydraRecordNoteColor.KICK:
+            case NoteColor.KICK:
                 return "K"
-            case HydraRecordNoteColor.RED:
+            case NoteColor.RED:
                 return "R"
-            case HydraRecordNoteColor.YELLOW:
+            case NoteColor.YELLOW:
                 return "Y"
-            case HydraRecordNoteColor.BLUE:
+            case NoteColor.BLUE:
                 return "B"
-            case HydraRecordNoteColor.GREEN:
+            case NoteColor.GREEN:
                 return "G"
 
 
-class HydraRecordNoteDynamicType(Enum):
+class NoteDynamicType(Enum):
     """Representation of a note's dynamic type."""
     NORMAL = 1
     GHOST = 2
     ACCENT = 3
 
 
-class HydraRecordNoteCymbalType(Enum):
+class NoteCymbalType(Enum):
     """Representation of a note's dynamic type.
     
     Normal = Toms / Snare / Kick.
@@ -439,28 +441,28 @@ class HydraRecordNoteCymbalType(Enum):
     CYMBAL = 2
 
 
-class HydraRecordChordNote:
+class ChordNote:
     """Representation of a note from a chart."""
 
     def __init__(self):
         self.colortype = None
-        self.dynamictype = HydraRecordNoteDynamicType.NORMAL
-        self.cymbaltype = HydraRecordNoteCymbalType.NORMAL
+        self.dynamictype = NoteDynamicType.NORMAL
+        self.cymbaltype = NoteCymbalType.NORMAL
         self.is2x = False
-        
+    
     def __str__(self):
         if self.colortype.allows_cymbals():
-            cym = "Cym" if self.cymbaltype == HydraRecordNoteCymbalType.CYMBAL else "Tom"
+            cym = "Cym" if self.cymbaltype == NoteCymbalType.CYMBAL else "Tom"
         else:
             cym = ""
             
         if self.colortype.allows_dynamics():
             match self.dynamictype:
-                case HydraRecordNoteDynamicType.NORMAL:
+                case NoteDynamicType.NORMAL:
                     mod = ""
-                case HydraRecordNoteDynamicType.GHOST:
+                case NoteDynamicType.GHOST:
                     mod = " (Ghost)"
-                case HydraRecordNoteDynamicType.ACCENT:
+                case NoteDynamicType.ACCENT:
                     mod = " (Accent)"
         elif self.is2x:
             mod = " (2x)"
@@ -468,7 +470,7 @@ class HydraRecordChordNote:
             mod = ""
             
         return f"{self.colortype}{cym}{mod}"
-        
+    
     def basescore(self):
         points = 65 if self.is_cymbal() else 50
 
@@ -476,38 +478,41 @@ class HydraRecordChordNote:
             points *= 2
         
         return points
-        
+    
     def is_dynamic(self):
-        return self.dynamictype != HydraRecordNoteDynamicType.NORMAL
-        
+        return self.dynamictype != NoteDynamicType.NORMAL
+    
     def is_accent(self):
-        return self.dynamictype == HydraRecordNoteDynamicType.ACCENT
-        
+        return self.dynamictype == NoteDynamicType.ACCENT
+    
     def is_ghost(self):
-        return self.dynamictype == HydraRecordNoteDynamicType.GHOST
-        
+        return self.dynamictype == NoteDynamicType.GHOST
+    
     def is_cymbal(self):
-        return self.cymbaltype == HydraRecordNoteCymbalType.CYMBAL
-        
+        return self.cymbaltype == NoteCymbalType.CYMBAL
+    
     def flip_cymbal(self):
-        self.cymbaltype = HydraRecordNoteCymbalType.NORMAL if self.is_cymbal() else HydraRecordNoteCymbalType.CYMBAL
+        if self.is_cymbal:
+            self.cymbaltype = NoteCymbalType.NORMAL
+        else:
+            self.cymbaltype = NoteCymbalType.CYMBAL
 
 
-class HydraRecordChord:
+class Chord:
     """Representation of a chord which has 1 note (or None) for each color."""
     
     def __init__(self):
         self.notemap = {
-            HydraRecordNoteColor.KICK: None,
-            HydraRecordNoteColor.RED: None,
-            HydraRecordNoteColor.YELLOW: None,
-            HydraRecordNoteColor.BLUE: None,
-            HydraRecordNoteColor.GREEN: None
+            NoteColor.KICK: None,
+            NoteColor.RED: None,
+            NoteColor.YELLOW: None,
+            NoteColor.BLUE: None,
+            NoteColor.GREEN: None
         }
-        
+    
     def __getitem__(self, c, objtype=None):
         return self.notemap[c]
-        
+    
     def __setitem__(self, c, value):
         self.notemap[c] = value
     
@@ -517,37 +522,42 @@ class HydraRecordChord:
         if basesorted:
             notelist.sort(key=lambda n: n.basescore())
         return notelist
-        
+    
     def count(self):
         return len(self.notes())
     
     def ghost_count(self):
-        return len([n for n in self.notes() if n.dynamictype == HydraRecordNoteDynamicType.GHOST])
-        
+        return len([n for n in self.notes() if n.is_ghost()])
+    
     def accent_count(self):
-        return len([n for n in self.notes() if n.dynamictype == HydraRecordNoteDynamicType.ACCENT])
-        
+        return len([n for n in self.notes() if n.is_accent()])
+    
     def rowstr(self):
         return f"[{" - ".join([str(n) for n in self.notes()])}]"
-        
+    
     def notationstr(self):
-        letters = [c.notationstr() if n else ' ' for c, n in self.notemap.items()]
-        return f"[{''.join(letters)}]"
-        
+        krybg = "["
+        for color, note in self.notemap.items():
+            krybg += color.notationstr() if note else ' '
+        return krybg + "]"
+    
     def apply_cymbals(self, yellow_iscym, blue_iscym, green_iscym):
         """Utility to edit notes based on a tom/cymbal flag."""
         for key, flag in [
-            (HydraRecordNoteColor.YELLOW, yellow_iscym),
-            (HydraRecordNoteColor.BLUE, blue_iscym),
-            (HydraRecordNoteColor.GREEN, green_iscym)
+            (NoteColor.YELLOW, yellow_iscym),
+            (NoteColor.BLUE, blue_iscym),
+            (NoteColor.GREEN, green_iscym)
         ]:
             if self[key] and flag is not None:
-                self[key].cymbaltype = HydraRecordNoteCymbalType.CYMBAL if flag else HydraRecordNoteCymbalType.NORMAL
-        
+                if flag:
+                    self[key].cymbaltype = NoteCymbalType.CYMBAL
+                else:
+                    self[key].cymbaltype = NoteCymbalType.NORMAL
+    
     def apply_disco_flip(self):
         """Utility to edit notes based on a disco flip flag."""
-        red = self[HydraRecordNoteColor.RED]
-        yellow = self[HydraRecordNoteColor.YELLOW]
+        red = self[NoteColor.RED]
+        yellow = self[NoteColor.YELLOW]
         
         # Cymbal flip
         if red:
@@ -556,54 +566,52 @@ class HydraRecordChord:
             yellow.flip_cymbal()
         
         # Color swap
-        self[HydraRecordNoteColor.RED] = yellow
-        self[HydraRecordNoteColor.YELLOW] = red
-        
-        
+        self[NoteColor.RED] = yellow
+        self[NoteColor.YELLOW] = red
+    
     def add_from_midi(self, note, velocity):
         note_to_color = {
-            95: HydraRecordNoteColor.KICK,
-            96: HydraRecordNoteColor.KICK,
-            97: HydraRecordNoteColor.RED,
-            98: HydraRecordNoteColor.YELLOW,
-            99: HydraRecordNoteColor.BLUE,
-            100: HydraRecordNoteColor.GREEN        
+            95: NoteColor.KICK,
+            96: NoteColor.KICK,
+            97: NoteColor.RED,
+            98: NoteColor.YELLOW,
+            99: NoteColor.BLUE,
+            100: NoteColor.GREEN        
         }
         
         color = note_to_color[note]
         
         assert(self[color] is None)
-        newnote = HydraRecordChordNote()
+        newnote = ChordNote()
         newnote.colortype = color
         if color.allows_dynamics():
             if velocity == 1:
-                newnote.dynamictype = HydraRecordNoteDynamicType.GHOST
+                newnote.dynamictype = NoteDynamicType.GHOST
             elif velocity == 127:
-                newnote.dynamictype = HydraRecordNoteDynamicType.ACCENT
+                newnote.dynamictype = NoteDynamicType.ACCENT
             else:
-                newnote.dynamictype = HydraRecordNoteDynamicType.NORMAL
+                newnote.dynamictype = NoteDynamicType.NORMAL
         newnote.is2x = note == 95
         self[color] = newnote
-        
-        
+    
     def add_note(self, color):
         assert(self[color] is None)
-        self[color] = HydraRecordChordNote()
+        self[color] = ChordNote()
         self[color].colortype = color
-        
+    
     def add_2x(self):
-        self.add_note(HydraRecordNoteColor.KICK)
-        self[HydraRecordNoteColor.KICK].is2x = True
-        
+        self.add_note(NoteColor.KICK)
+        self[NoteColor.KICK].is2x = True
+    
     def apply_cymbal(self, color):
         assert(self[color] is not None)
-        self[color].cymbaltype = HydraRecordNoteCymbalType.CYMBAL
-        
+        self[color].cymbaltype = NoteCymbalType.CYMBAL
+    
     def apply_ghost(self, color):
         assert(self[color] is not None)
-        self[color].dynamictype = HydraRecordNoteDynamicType.GHOST
-        
+        self[color].dynamictype = NoteDynamicType.GHOST
+    
     def apply_accent(self, color):
         assert(self[color] is not None)
-        self[color].dynamictype = HydraRecordNoteDynamicType.ACCENT
+        self[color].dynamictype = NoteDynamicType.ACCENT
 

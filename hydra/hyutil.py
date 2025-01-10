@@ -6,7 +6,7 @@ import pathlib
 import time
 
 from . import hypath
-from . import hyrecord
+from . import hydata
 from . import hysong
 from . import hymisc
 
@@ -64,7 +64,7 @@ def analyze_chart(
     d_mode, d_value,
     cb_parsecomplete=None, cb_pathsprogress=None
 ):
-    """The full process to go from chart file to hyrecord.
+    """The full process to go from chart file to hydata.
     
     It's more or less a chain: Chart --> Song --> Graph --> Record.
     

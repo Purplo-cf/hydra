@@ -3,7 +3,7 @@ import unittest
 import json
 
 import hydra.hyutil as hyutil
-import hydra.hyrecord as hyrecord
+import hydra.hydata as hydata
 
 
 class TestScoring(unittest.TestCase):
@@ -21,7 +21,7 @@ class TestScoring(unittest.TestCase):
         # Get the solution data
         solnspath = os.sep.join(["..","test","solutions","test_scoring.json"])
         with open(solnspath, 'r') as jsonfile:
-            self.book = json.load(jsonfile, object_hook=hyrecord.json_load)
+            self.book = json.load(jsonfile, object_hook=hydata.json_load)
     
     def _test_scoring(self, chartname, hyhash):
         chartpath = self.chartfolder + os.sep + chartname

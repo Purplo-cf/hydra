@@ -4,7 +4,7 @@ import math
 import json
 from enum import Enum
 
-from . import hyrecord
+from . import hydata
 from . import hymisc
 
 
@@ -88,7 +88,7 @@ class ScoreGraph:
             comboscore = points_by_source['combo_note'] + points_by_source['combo_cymbal'] + points_by_source['combodynamic_note'] + points_by_source['combodynamic_cymbal']
             
             if msq_points != 0:
-                msq = hyrecord.HydraRecordMultSqueeze()
+                msq = hydata.MultSqueeze()
                 msq.multiplier = to_multiplier(self.combo) + 1
                 msq.chord = timestamp.chord
                 msq.points = msq_points
@@ -104,7 +104,7 @@ class ScoreGraph:
             
             self.combo += timestamp.chord.count()
             
-            _backend = (hyrecord.HydraRecordBackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, timestamp_spscore - sqout_reduction), timestamp.flag_sp)
+            _backend = (hydata.BackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, timestamp_spscore - sqout_reduction), timestamp.flag_sp)
             
             # Add this chord's sp points to backends that will be fed to any deactivation that happens soon
             backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
@@ -240,7 +240,7 @@ class ScoreGraph:
         act_edge.accentscore = 0
         act_edge.ghostscore = 0
         
-        act_edge.frontend = hyrecord.HydraRecordFrontendSqueeze(frontend_chord, frontend_points)
+        act_edge.frontend = hydata.FrontendSqueeze(frontend_chord, frontend_points)
         
         act_edge.activation_fill_length_ticks = fill_length_ticks
         act_edge.activation_fill_deadline = hymisc.Timecode(act_edge.dest.timecode.ticks - 2 * fill_length_ticks, song)
@@ -361,13 +361,13 @@ class ScoreGraphEdge:
     
     
 class GraphPather:
-    """Responsible for creating multiple paths and for creating hyrecords.
+    """Responsible for creating multiple paths and for creating records.
     
-    Reads ScoreGraphs; stores a hyrecord for the latest graph that was read.
+    Reads ScoreGraphs; stores a record for the latest graph that was read.
     
     """
     def __init__(self):
-        self.record = hyrecord.HydraRecord()
+        self.record = hydata.HydraRecord()
         
     def read(self, graph, depth_mode, depth_value, cb_pathsprogress=None):
         paths = [GraphPath()]
@@ -400,17 +400,11 @@ class GraphPather:
                 cb_pathsprogress(tc, length / graph.length)
 
         # Order the completed paths by score
-        paths.sort(key=lambda p: p.record.totalscore(), reverse=True)
+        paths.sort(key=lambda p: p.data.totalscore(), reverse=True)
     
-        # Paths already built their HydraRecordPaths; add them to our hyrecord
+        # Paths already built their data; add them to our hydata
         for path in paths:
-            # Save optimal for convenience (it's just the sum of the other scores)
-            path.record.ref_totalscore = path.record.totalscore()
-            
-            self.record.paths.append(path.record)
-
-        # Fill out more fields on hyrecord
-        #self.record.hyhash = graph.songhash
+            self.record.paths.append(path.data)
     
     def reduced_paths(self, paths, depth_mode, depth_value):
         """Reduce the number of paths along the way by eliminating paths
@@ -453,8 +447,8 @@ class GraphPather:
                 p_sp = 0 if p.is_complete() else (p.sp_end_time if p.is_active_sp() else p.sp)
                 q_sp = 0 if q.is_complete() else (q.sp_end_time if q.is_active_sp() else q.sp)
                 
-                p_score = p.record.totalscore()
-                q_score = q.record.totalscore()
+                p_score = p.data.totalscore()
+                q_score = q.data.totalscore()
                     
                 if p.is_active_sp():
                     if p_sp != q_sp:
@@ -488,10 +482,10 @@ class GraphPather:
                     
                 # Worse path also needs to be outside the depth parameter
                 # in order to be removed
-                if depth_mode == 'points' and worse.record.totalscore() + depth_value < better.record.totalscore():
+                if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
                     paths_to_remove.add(worse)
                     
-                paths_to_better_scores[worse].add(better.record.totalscore())
+                paths_to_better_scores[worse].add(better.data.totalscore())
         
         
         if depth_mode == 'scores':
@@ -512,7 +506,7 @@ class GraphPath:
     
     """
     def __init__(self):
-        self.record = hyrecord.HydraRecordPath()
+        self.data = hydata.Path()
         
         self.currentnode = None
         
@@ -547,7 +541,7 @@ class GraphPath:
         self_sp_value = (self.sp_end_time if self_sp_active else self.sp) if self.currentnode else 0
         other_sp_value = (other.sp_end_time if other_sp_active else other.sp) if other.currentnode else 0
         
-        return self.record.totalscore() < other.record.totalscore() and self_sp_value <= other_sp_value
+        return self.data.totalscore() < other.data.totalscore() and self_sp_value <= other_sp_value
         
     # Develop along the edge that leads farther into the song.
     # Always moves a path closer to being complete, unless it's already complete.
@@ -560,14 +554,14 @@ class GraphPath:
         
         adv_edge = self.currentnode.adv_edge
         if adv_edge:
-            self.record.score_base += adv_edge.basescore
-            self.record.score_combo += adv_edge.comboscore
-            self.record.score_sp += adv_edge.spscore
-            self.record.score_solo += adv_edge.soloscore
-            self.record.score_accents += adv_edge.accentscore
-            self.record.score_ghosts += adv_edge.ghostscore
+            self.data.score_base += adv_edge.basescore
+            self.data.score_combo += adv_edge.comboscore
+            self.data.score_sp += adv_edge.spscore
+            self.data.score_solo += adv_edge.soloscore
+            self.data.score_accents += adv_edge.accentscore
+            self.data.score_ghosts += adv_edge.ghostscore
             
-            #self.record.notecount += adv_edge.notecount
+            #self.data.notecount += adv_edge.notecount
             
             #print(f"\tGoing to {adv_edge.dest.timecode.measurestr()}.")
             # Applying SP on this edge
@@ -594,7 +588,7 @@ class GraphPath:
                 if old_sp < 2 and self.sp >= 2:
                     self.sp_ready_time = adv_edge.sp_times[1 - old_sp][0]
  
-            self.record.multsqueezes += adv_edge.multsqueezes
+            self.data.multsqueezes += adv_edge.multsqueezes
                         
             self.currentnode = adv_edge.dest
                     
@@ -661,7 +655,7 @@ class GraphPath:
                 return False, None
         
         new_path = GraphPath()
-        new_path.record = copy.deepcopy(self.record)
+        new_path.data = copy.deepcopy(self.data)
         new_path.currentnode = br_edge.dest
         
         # Deactivated paths have 0 sp, and activated paths immediately "spend" the sp and just know what time the sp ends.
@@ -669,16 +663,16 @@ class GraphPath:
         
         if br_edge.dest.is_sp:
             # Activation
-            new_path.record.activations.append(hyrecord.HydraRecordActivation())
-            new_path.record.activations[-1].skips = self.currentskips
-            new_path.record.activations[-1].timecode = self.currentnode.timecode
-            new_path.record.activations[-1].chord = self.currentnode.chord
-            new_path.record.activations[-1].sp_meter = self.sp
+            new_path.data.activations.append(hydata.Activation())
+            new_path.data.activations[-1].skips = self.currentskips
+            new_path.data.activations[-1].timecode = self.currentnode.timecode
+            new_path.data.activations[-1].chord = self.currentnode.chord
+            new_path.data.activations[-1].sp_meter = self.sp
             
-            new_path.record.activations[-1].frontend = br_edge.frontend
-            new_path.record.score_sp += br_edge.frontend.points
+            new_path.data.activations[-1].frontend = br_edge.frontend
+            new_path.data.score_sp += br_edge.frontend.points
             
-            new_path.record.activations[-1].e_offset = self.skipped_e_offset if self.skipped_e_offset is not None else e_offset
+            new_path.data.activations[-1].e_offset = self.skipped_e_offset if self.skipped_e_offset is not None else e_offset
             new_path.skipped_e_offset = None
             
             new_path.sp_ready_time = None
@@ -697,35 +691,35 @@ class GraphPath:
             #print("\tDeactivating!")
             new_path.sp_end_time = None
             
-            new_path.record.activations[-1].backends = [be[0] for be in br_edge.backends]
+            new_path.data.activations[-1].backends = [be[0] for be in br_edge.backends]
             
             if sq_out:
-                new_path.record.activations[-1].sqinouts.append('-')
-                self.record.activations[-1].sqinouts.append('+')
+                new_path.data.activations[-1].sqinouts.append('-')
+                self.data.activations[-1].sqinouts.append('+')
                 
                 # Adjust sq-out scoring (basically an altered backend calculation)
                 # When a backend is after the sq-out chord but before current, it's been already counted, so it needs to be subtracted.
                 # When a backend IS the sq-out chord and being subtracted, only subtract the least valuable note.
                 for be,be_sp in br_edge.backends:
                     if be.timecode >= br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
-                        new_path.record.score_sp -= be.points
+                        new_path.data.score_sp -= be.points
                     
                     # And add back in sqout points (lol) if this is the exact sqout chord
                     if be.timecode == br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
-                        new_path.record.score_sp += be.sqout_points
+                        new_path.data.score_sp += be.sqout_points
             else:
                 # Typical deactivation
                 
                 # If a backend is only a few ms away, just add it in for free without calling it a double squeeze
                 for be,be_sp in br_edge.backends:
                     if be.offset_ms > 0 and be.offset_ms < 3:
-                        new_path.record.score_sp += be.points
+                        new_path.data.score_sp += be.points
 
                 # SqIn may be possible, which would save self from being removed imminently
                 if br_edge.sqinout_amount > 0:
                     print("\tSpecial condition for late SqIn occurred.")
-                    new_path.record.activations[-1].sqinouts.append('-')
-                    self.record.activations[-1].sqinouts.append('+')
+                    new_path.data.activations[-1].sqinouts.append('-')
+                    self.data.activations[-1].sqinouts.append('+')
                     # self got here by being at its sp end time, but now it can be extended.
                     self.sp_end_time = br_edge.sqinout_indicator_time
                     self.buffered_sqin_sp = br_edge.sqinout_amount

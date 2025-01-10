@@ -2,7 +2,7 @@ import mido
 import re
 import hashlib
 
-from . import hyrecord
+from . import hydata
 from . import hymisc
 
 class SongTimestamp:
@@ -279,7 +279,7 @@ class MidiParser:
 
                         # Add to current chord - tom status will apply later
                         if not self.timestamp.chord:
-                            self.timestamp.chord = hyrecord.HydraRecordChord()
+                            self.timestamp.chord = hydata.Chord()
                         self.timestamp.chord.add_from_midi(msg.note, msg.velocity)
         
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
@@ -655,7 +655,7 @@ class ChartParser:
         for tick,tick_entries in self.sections["ExpertDrums"].data.items():
             
             timestamp = SongTimestamp()
-            timestamp.chord = hyrecord.HydraRecordChord()
+            timestamp.chord = hydata.Chord()
             
             timestamp.time = self.tick_to_time(tick)
             timestamp.measure = self.time_to_measure(timestamp.time)
@@ -688,59 +688,59 @@ class ChartParser:
                     match tick_entry.notevalue:
                         case 0:
                             # Kick note
-                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.KICK)
+                            timestamp.chord.add_note(hydata.NoteColor.KICK)
                         case 1:
                             # Red note
-                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.RED)
+                            timestamp.chord.add_note(hydata.NoteColor.RED)
                         case 2:
                             # Yellow note
-                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.YELLOW)
+                            timestamp.chord.add_note(hydata.NoteColor.YELLOW)
                         case 3:
                             # Blue note
-                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.BLUE)
+                            timestamp.chord.add_note(hydata.NoteColor.BLUE)
                         case 4:
                             # Green note
-                            timestamp.chord.add_note(hyrecord.HydraRecordNoteColor.GREEN)
+                            timestamp.chord.add_note(hydata.NoteColor.GREEN)
                         case 32:
                             # 2x Kick note
                             if self.mode_bass2x:
                                 timestamp.chord.add_2x()
                         case 34:
                             # Red accent
-                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.RED)
+                            timestamp.chord.apply_accent(hydata.NoteColor.RED)
                         case 35:
                             # Yellow accent
-                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.YELLOW)
+                            timestamp.chord.apply_accent(hydata.NoteColor.YELLOW)
                         case 36:
                             # Blue accent
-                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.BLUE)
+                            timestamp.chord.apply_accent(hydata.NoteColor.BLUE)
                         case 37:
                             # Green accent
-                            timestamp.chord.apply_accent(hyrecord.HydraRecordNoteColor.GREEN)
+                            timestamp.chord.apply_accent(hydata.NoteColor.GREEN)
                         case 40:
                             # Red ghost
-                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.RED)
+                            timestamp.chord.apply_ghost(hydata.NoteColor.RED)
                         case 41:
                             # Yellow ghost
-                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.YELLOW)
+                            timestamp.chord.apply_ghost(hydata.NoteColor.YELLOW)
                         case 42:
                             # Blue ghost
-                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.BLUE)
+                            timestamp.chord.apply_ghost(hydata.NoteColor.BLUE)
                         case 43:
                             # Green ghost
-                            timestamp.chord.apply_ghost(hyrecord.HydraRecordNoteColor.GREEN)
+                            timestamp.chord.apply_ghost(hydata.NoteColor.GREEN)
                         case 66:
                             # Yellow cymbal
                             if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.YELLOW)
+                                timestamp.chord.apply_cymbal(hydata.NoteColor.YELLOW)
                         case 67:
                             # Blue cymbal
                             if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.BLUE)
+                                timestamp.chord.apply_cymbal(hydata.NoteColor.BLUE)
                         case 68:
                             # Green cymbal
                             if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hyrecord.HydraRecordNoteColor.GREEN)
+                                timestamp.chord.apply_cymbal(hydata.NoteColor.GREEN)
                         case _:
                             raise NotImplementedError(f"Unknown note {tick_entry.notevalue}")
                 

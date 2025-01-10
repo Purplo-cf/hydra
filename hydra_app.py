@@ -11,7 +11,7 @@ import dearpygui.demo as demo
 
 import hydra.hymisc as hymisc
 import hydra.hyutil as hyutil
-import hydra.hyrecord as hyrecord
+import hydra.hydata as hydata
 
 
 """Song Library (database)"""
@@ -182,20 +182,20 @@ class HyAppRecordBook:
     
     Top level organization is by hyhash.
     In each hyhash are ref values and a 'records' map of
-    chartmode_key: hyrecord.
+    chartmode_key: hydata.
     
     hyhash: Hash of the chart file. Not comparable to other apps' song hashes.
     
     """
     def __init__(self):
-        """Load existing hyrecords from file or initialize it"""
+        """Load existing records from file or initialize it"""
         # Initialize
         self.book = {}
         
         try:
             # Import from save file
             with open(hymisc.BOOKPATH, 'r') as jsonfile:
-                self.book = json.load(jsonfile, object_hook=hyrecord.json_load)
+                self.book = json.load(jsonfile, object_hook=hydata.json_load)
                 if self.book is None:
                     self.book = {}
         except FileNotFoundError:
@@ -229,7 +229,7 @@ class HyAppRecordBook:
         self.savejson()
         
     def add_record(self, hyhash, chartmode, record):
-        """Adds a HydraRecord.
+        """Adds a record in the given place.
         
         Requires the song to have been added beforehand.
         
@@ -241,7 +241,7 @@ class HyAppRecordBook:
     def savejson(self):
         """Save current state to json file."""
         with open(hymisc.BOOKPATH, 'w') as jsonfile:
-            json.dump(self.book, jsonfile, default=hyrecord.json_save, indent=4)
+            json.dump(self.book, jsonfile, default=hydata.json_save, indent=4)
 
 class HyAppState:
     """Manages Hydra's state."""
@@ -250,7 +250,7 @@ class HyAppState:
     
     def __init__(self):
         self.usettings = HyAppUserSettings()
-        self.hyrecordbook = HyAppRecordBook()
+        self.hydatabook = HyAppRecordBook()
         self.table_viewpage = 0
         self.librarysize = 0
         self.search = None
@@ -264,7 +264,7 @@ class HyAppState:
             
     def get_record(self, hyhash, chartmode):
         try:
-            return self.hyrecordbook.book[hyhash]['records'][chartmode]
+            return self.hydatabook.book[hyhash]['records'][chartmode]
         except KeyError:
             return None
             
@@ -461,9 +461,9 @@ def on_run_chart(sender, app_data, user_data):
     dpg.set_value("analyze_opt_bar", 1)
     dpg.show_item("analyze_opt_done")
     
-    appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
+    appstate.hydatabook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
     
-    appstate.hyrecordbook.add_record(appstate.selected_song_row[0], appstate.usettings.chartmode_key(), record)
+    appstate.hydatabook.add_record(appstate.selected_song_row[0], appstate.usettings.chartmode_key(), record)
     # pause
     time.sleep(0.5)
     # update record displays
