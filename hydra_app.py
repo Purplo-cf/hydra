@@ -122,7 +122,7 @@ class HyAppRecordBook:
         try:
             # Import from save file
             with open(hymisc.BOOKPATH, 'r') as jsonfile:
-                self.book = json.load(jsonfile, object_hook=hyrecord.custom_json_load)
+                self.book = json.load(jsonfile, object_hook=hyrecord.json_load)
                 if self.book is None:
                     self.book = {}
         except FileNotFoundError:
@@ -168,7 +168,7 @@ class HyAppRecordBook:
     def savejson(self):
         """Save current state to json file."""
         with open(hymisc.BOOKPATH, 'w') as jsonfile:
-            json.dump(self.book, jsonfile, default=hyrecord.custom_json_save, indent=4)
+            json.dump(self.book, jsonfile, default=hyrecord.json_save, indent=4)
 
 class HyAppState:
     """Manages Hydra's state."""

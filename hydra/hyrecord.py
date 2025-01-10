@@ -4,7 +4,7 @@ from enum import Enum
 from . import hymisc
 
 
-def custom_json_save(obj):
+def json_save(obj):
     """Object --> dict conversion."""
     if isinstance(obj, HydraRecord):
         return {
@@ -128,7 +128,7 @@ def custom_json_save(obj):
     raise TypeError(f"Unhanded type: {type(obj)}")
     
 
-def custom_json_load(_dict):
+def json_load(_dict):
     """Dict --> Object conversion."""
     try:
         obj_code = _dict['__obj__']

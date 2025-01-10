@@ -1,23 +1,27 @@
 import os
 import unittest
-import configparser
-import hashlib
 import json
 
-import hydra.hypath as hypath
 import hydra.hyutil as hyutil
-import hydra.hymisc as hymisc
 import hydra.hyrecord as hyrecord
 
 
 class TestScoring(unittest.TestCase):
+    """Test that the score breakdowns match between the test solution and
+    the test input freshly analyzed.
+    
+    Any chart + score can be added as a test as long as the score is pretty
+    confidently optimal AND the Clone Hero score breakdown for that optimal
+    run is known.
+    
+    """
     def setUp(self):
         self.chartfolder = os.sep.join(["..","test","input","test_scoring"])
         
         # Get the solution data
         solnspath = os.sep.join(["..","test","solutions","test_scoring.json"])
         with open(solnspath, 'r') as jsonfile:
-            self.book = json.load(jsonfile, object_hook=hyrecord.custom_json_load)
+            self.book = json.load(jsonfile, object_hook=hyrecord.json_load)
     
     def _test_scoring(self, chartname, hyhash):
         chartpath = self.chartfolder + os.sep + chartname
