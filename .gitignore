@@ -1,13 +1,11 @@
 # Hydra local outputs.
 output/*
 
-# Hydra pycache.
+# pycache.
 hydra/__pycache__
-
-# Tests pycache.
 test/__pycache__
 
 # HyApp
 hyapp.ini
-hydra.db
+hyapp.db
 records.json

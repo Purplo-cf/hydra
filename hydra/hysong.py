@@ -60,8 +60,10 @@ class Song:
         self.solo_note_count = 0
         
         self.tick_resolution = None
-        self.measure_map = {}
-        self.tempo_map = {}
+        
+        """The ticks where the ticks per measure / tempo changes."""
+        self.tpm_changes = {}
+        self.bpm_changes = {}
         
         self.generated_fills = False
     
@@ -219,7 +221,7 @@ class MidiParser:
         if msg.type in ['set_tempo']:
             self.tempo = msg.tempo
             
-            self.song.tempo_map[self.elapsed_ticks] = 60000000 / msg.tempo
+            self.song.bpm_changes[self.elapsed_ticks] = 60000000 / msg.tempo
             
         # Time signature
         if msg.type in ['time_signature']:
@@ -227,7 +229,7 @@ class MidiParser:
             self.ts_denominator = msg.denominator
             
             # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
-            self.song.measure_map[self.elapsed_ticks] = self.ticks_per_beat * self.ts_numerator * 4 // self.ts_denominator
+            self.song.tpm_changes[self.elapsed_ticks] = self.ticks_per_beat * self.ts_numerator * 4 // self.ts_denominator
             
         if msg.type in ['note_on', 'note_off']:
             note_started = msg.type == 'note_on' and msg.velocity > 0
@@ -640,7 +642,7 @@ class ChartParser:
         self.resolution = int(self.sections["Song"].data["Resolution"][0].property)
         self.song.tick_resolution = self.resolution
         
-        self.song.measure_map, self.song.tempo_map = self.timing_maps()
+        self.song.tpm_changes, self.song.bpm_changes = self.timing_maps()
         
         solo_on = False
 

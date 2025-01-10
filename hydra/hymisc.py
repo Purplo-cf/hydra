@@ -8,31 +8,30 @@ Major version update: Incompatible changes or big milestones.
 Minor version update: Changes that are expected to affect paths/scores.
 Patch version update: UI or other cosmetic changes.
 
-Records with an old major version will be wiped.
-Records with an old minor version will be marked stale.
+Records with an old major version will be wiped without trying to read them.
+Records with an old minor version will be marked stale, but will work normally.
 
 """
-HYDRA_VERSION = (0,0,1)
+HYDRA_VERSION = (1,0,0)
 
 
 """Static paths and files"""
 
 ROOTPATH = pathlib.Path(__file__).resolve().parent.parent
 INIPATH = ROOTPATH / "hyapp.ini"
-DBPATH = ROOTPATH / "hydra.db"
-ICOPATH = ROOTPATH / "resource" / "Icon.ico"
+DBPATH = ROOTPATH / "hyapp.db"
 FONTPATH_ANTQ = ROOTPATH / "resource" / "ShipporiAntiqueB1-Regular.ttf"
 FONTPATH_MONO = ROOTPATH / "resource" / "CourierPrime-Regular.ttf"
-ICOPATH_NOTE = ROOTPATH / "resource" / "uicon_note_32.png"
-ICOPATH_SNAKE = ROOTPATH / "resource" / "uicon_snake_32.png"
 BOOKPATH = ROOTPATH / "records.json"
 
+ICOPATH_APP = ROOTPATH / "resource" / "icon_app.ico"
 ICOPATH_RECORD = ROOTPATH / "resource" / "icon_record_32.png"
 ICOPATH_STAR = ROOTPATH / "resource" / "icon_star_32.png"
 ICOPATH_PENCIL = ROOTPATH / "resource" / "icon_pencil_32.png"
 ICOPATH_HASH = ROOTPATH / "resource" / "icon_hash_32.png"
 
 
+"""Associated info: db column name, db index, and display name."""
 TABLE_COL_INFO = {
     'hyhash': (0, "Hydra Hash"),
     'name': (1, "Title"),
@@ -68,7 +67,7 @@ class Timecode:
         
         # Derived values
         self.measure_beats_ticks = [0, 0, 0]
-        self.measure_percent = 0.0
+        self.measures_decimal = 0.0
         self.ms = 0.0
         
         if song is not None:
@@ -76,80 +75,88 @@ class Timecode:
             self._init_ms(song)
     
     def _init_mbt(self, song):
-        """Iterate over a song's meter to convert ticks to measures.
-            
+        """Iterate over a song's meter to derive the measure/beat/tick position
+        that corresponds to self.ticks.
+        
         After all whole measures are counted, whole beats are counted.
         The remainder after measures and beats stays as ticks.
             
         """
-        assert(song.measure_map)
-        keys = sorted(song.measure_map.keys())
-        assert(keys[0] == 0)
-        at_tick = 0
-        current_ticks_per_m = song.measure_map[0]
-        ticks_to_advance = 0
-        for tick_key in keys[1:]:            
-            ticks_to_advance = min(tick_key - at_tick, self.ticks - at_tick)
+        keys = sorted(song.tpm_changes.keys())
+        handled_ticks = 0
+        current_tpm = song.tpm_changes[0]
+        
+        # Advance through the song in sections marked by each tpm change
+        for tick_key in keys[1:]:
+            # Advance to whichever comes first, the next section or our tick
+            ticks_to_advance = min(
+                tick_key - handled_ticks,
+                self.ticks - handled_ticks
+            )
             
-            # Apply measures
-            whole_measures = ticks_to_advance // current_ticks_per_m
-            ticks_to_advance %= current_ticks_per_m
-            
+            # Count whole measures out of the ticks that are being advanced
+            whole_measures = ticks_to_advance // current_tpm
+            ticks_to_advance %= current_tpm
             self.measure_beats_ticks[0] += whole_measures
-            at_tick += whole_measures * current_ticks_per_m
+            handled_ticks += whole_measures * current_tpm
             
-            
-            if at_tick + ticks_to_advance == self.ticks:
+            # If our tick is what's next (i.e. no more sections are needed)
+            if handled_ticks + ticks_to_advance == self.ticks:
                 break
-            else:
-                assert(ticks_to_advance == 0)
         
-            current_ticks_per_m = song.measure_map[tick_key]
-            
-            
-        ticks_to_advance = self.ticks - at_tick
+            # Set new tpm for the next section
+            current_tpm = song.tpm_changes[tick_key]
         
-        self.measure_beats_ticks[0] += ticks_to_advance // current_ticks_per_m
-        ticks_to_advance %= current_ticks_per_m
+        # Count past the last tpm mark if needed
+        ticks_to_advance = self.ticks - handled_ticks
         
-        # Alternate remainder: percentage
-        self.measure_percent = ticks_to_advance / current_ticks_per_m
+        # Count whole measures
+        self.measure_beats_ticks[0] += ticks_to_advance // current_tpm
+        ticks_to_advance %= current_tpm
         
-        # Remainder: beats, then ticks
+        # Less than 1 measure remains. Count whole beats
         self.measure_beats_ticks[1] = ticks_to_advance // song.tick_resolution
+        # Any ticks left over (less than 1 beat) will just be the remainder
         self.measure_beats_ticks[2] = ticks_to_advance % song.tick_resolution
         
+        # Alternate way to express being partway into a measure
+        partial_m = ticks_to_advance / current_tpm
+        self.measures_decimal = self.measure_beats_ticks[0] + partial_m
+        
+        # Finalize
         self.measure_beats_ticks = tuple(self.measure_beats_ticks)
     
     def _init_ms(self, song):
         """Iterate over a song's tempo map to derive milliseconds."""
-        assert(song.tempo_map)
-        assert(song.tick_resolution)
-        keys = sorted(song.tempo_map.keys())
-        assert(keys[0] == 0)
+        keys = sorted(song.bpm_changes.keys())
         
         def to_tps(bpm):
             nonlocal song
             return bpm * song.tick_resolution / 60
         
-        at_tick = 0
-        ticks_per_sec = to_tps(song.tempo_map[0])
-        ticks_to_advance = 0
+        handled_ticks = 0
+        tps = to_tps(song.bpm_changes[0])
+        # Advance through the song in sections marked by each bpm change
         for tick_key in keys[1:]:
-            ticks_to_advance = min(tick_key - at_tick, self.ticks - at_tick)
+            # Advance to whichever comes first, the next section or our tick
+            ticks_to_advance = min(
+                tick_key - handled_ticks,
+                self.ticks - handled_ticks
+            )
             
             # Apply ms
-            self.ms += ticks_to_advance / ticks_per_sec * 1000
-            at_tick += ticks_to_advance
+            self.ms += ticks_to_advance / tps * 1000
+            handled_ticks += ticks_to_advance
             
-            if at_tick == self.ticks:
+            # If we finished, jump out
+            if handled_ticks == self.ticks:
                 break
                 
-            ticks_per_sec = to_tps(song.tempo_map[tick_key])
+            tps = to_tps(song.bpm_changes[tick_key])
             
-        ticks_to_advance = self.ticks - at_tick
-        self.ms += ticks_to_advance / ticks_per_sec * 1000
-        
+        # Count ms past the last bpm mark if needed
+        ticks_to_advance = self.ticks - handled_ticks
+        self.ms += ticks_to_advance / tps * 1000
     
     def __eq__(self, other):
         return self.ticks == other.ticks
@@ -179,34 +186,41 @@ class Timecode:
         matter the time signature.
         
         """
-        t = self.measure_beats_ticks[0] + self.measure_percent + add_measures
-        assert(t >= 0)
-        target_m = int(t)
-        targetpartial = t % 1
+        # Add the given measures (working in measures)
+        m_decimal = self.measures_decimal + add_measures
+        target_m = int(m_decimal)
+        targetpartial = m_decimal % 1
         
-        keys = sorted(song.measure_map.keys())
-        assert(keys[0] == 0)
-        ticks_per_m = song.measure_map[0]
-        ticks_to_advance = 0
+        keys = sorted(song.tpm_changes.keys())
+        handled_ticks = 0
+        current_tpm = song.tpm_changes[0]
         counted_m = 0
-        countedticks = 0
         
+        # Advance through the song in sections marked by each tpm change
         for tick_key in keys[1:]:
-            available_ticks = tick_key - countedticks
+            # Count of ticks within this section
+            ticks_to_advance = tick_key - handled_ticks
         
-            while available_ticks >= ticks_per_m and counted_m < target_m:
+            # Count measures in this section (but stop at target measure)
+            while ticks_to_advance >= current_tpm and counted_m < target_m:
                 counted_m += 1
-                countedticks += ticks_per_m
-                available_ticks -= ticks_per_m
+                handled_ticks += current_tpm
+                ticks_to_advance -= current_tpm
         
+            # If we hit the target measure, jump out
             if counted_m == target_m:
+                # But if it was right on the section edge, get the next tpm
+                if ticks_to_advance == 0:
+                    current_tpm = song.tpm_changes[tick_key]
                 break
         
-            ticks_per_m = song.measure_map[tick_key]
+            current_tpm = song.tpm_changes[tick_key]
         
+        # Count measures past the last tpm if needed
         while counted_m < target_m:
             counted_m += 1
-            countedticks += ticks_per_m
+            handled_ticks += current_tpm
             
-        partial = int(targetpartial * ticks_per_m)
-        return Timecode(countedticks + partial, song)
+        # Now that we have the right tpm, convert the partial measure to ticks
+        partial = int(targetpartial * current_tpm)
+        return Timecode(handled_ticks + partial, song)

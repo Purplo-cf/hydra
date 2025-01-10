@@ -119,7 +119,7 @@ def custom_json_save(obj):
             # Derived values, but if we're loading timestamps,
             # we can't re-derive them without analyzing the song again.
             'mbt': obj.measure_beats_ticks,
-            'm_percent': obj.measure_percent,
+            'm_decimal': obj.measures_decimal,
             'ms': obj.ms,
                         
             'ref_measure': obj.measurestr(),
@@ -234,7 +234,7 @@ def custom_json_load(_dict):
     if obj_code == 'timecode':
         o = hymisc.Timecode(_dict['tick'], None)
         o.measure_beats_ticks = _dict['mbt']
-        o.measure_percent = _dict['m_percent']
+        o.measures_decimal = _dict['m_decimal']
         o.ms = _dict['ms']
         
         return o

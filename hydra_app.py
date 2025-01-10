@@ -660,8 +660,6 @@ def build_main_ui():
     
     # Textures
     with dpg.texture_registry():
-        load_icon(hymisc.ICOPATH_NOTE, "icon_note")
-        load_icon(hymisc.ICOPATH_SNAKE, "icon_snake")
         load_icon(hymisc.ICOPATH_RECORD, "icon_record")
         load_icon(hymisc.ICOPATH_STAR, "icon_star")
         load_icon(hymisc.ICOPATH_PENCIL, "icon_pencil")
@@ -824,7 +822,7 @@ if __name__ == '__main__':
     dpg.create_context()
     
     # Begin UI
-    icopath = str(hymisc.ICOPATH)
+    icopath = str(hymisc.ICOPATH_APP)
     dpg.create_viewport(title="Hydra v0.0.1", width=1280, height=720, small_icon=icopath, large_icon=icopath)
 
     #demo.show_demo()
