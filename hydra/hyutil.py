@@ -1,7 +1,6 @@
 import os
 import json
 import sqlite3
-import hashlib
 import configparser
 import pathlib
 import time
@@ -11,78 +10,8 @@ from . import hyrecord
 from . import hysong
 from . import hymisc
 
-
-def scan_charts(chartfolder,
-                cb_chartfound, cb_allchartsfound, cb_libraryadded):
-    """Makes a database out of the charts found in the given root folder.
-    Replaces the current one if it's already there.
     
-    """
-    # Map out the file locations first
-    chartfiles = discover_charts(chartfolder, cb_chartfound)
-    cb_allchartsfound(len(chartfiles))
-    
-    cxn = sqlite3.connect(hymisc.DBPATH)
-    cur = cxn.cursor()
-    
-    # Initialize db
-    chartrow = ','.join(hymisc.TABLE_COL_INFO.keys())
-    print(chartrow)
-    cur.execute("DROP TABLE IF EXISTS charts")
-    cur.execute(f"CREATE TABLE charts({chartrow})")
-    
-    # Copy info from each ini to the db
-    for i, (chartfile, inifile, path) in enumerate(chartfiles):        
-        config = configparser.ConfigParser(strict=False, allow_no_value=True)
-        # utf-8 should work but try to do other encodings if it doesn't
-        for codec in ['utf-8', 'utf-8-sig', 'ansi']:
-            try:
-                config.read(inifile, encoding=codec)
-                break
-            except (configparser.MissingSectionHeaderError, UnicodeDecodeError):
-                continue
-       
-        # Grab what we wanted from the ini file
-        if 'Song' in config:
-            metadata = config['Song']
-        elif 'song' in config:
-            metadata = config['song']
-        else:
-            raise hymisc.ChartFileError("Invalid ini format.")
-        
-        # Hash the chart file
-        with open(chartfile, 'rb') as f:
-            hyhash = hashlib.file_digest(f, "md5").hexdigest()
-        
-        # Grab those values
-        try:
-            name = metadata['name']
-        except KeyError:
-            name = "<unknown name>"
-            
-        try:
-            artist = metadata['artist']
-        except KeyError:
-            artist = "<unknown artist>"
-            
-        try:
-            charter = metadata['charter']
-        except KeyError:
-            charter = "<unknown charter>"
-
-        folder = os.path.relpath(pathlib.Path(path).parent, chartfolder)
-
-        # Insert into db
-        rowvalues = (hyhash, name, artist, charter, path, folder)
-        cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
-        cb_libraryadded(i+1, len(chartfiles))
-    
-    cxn.commit()
-    cxn.close()
-    
-    return len(chartfiles)
-    
-def discover_charts(rootname, cb_chartfound=None):
+def discover_charts(rootname, cb_progress=None):
     """Returns a list of tuples (notesfile, inifile, folder).
     
     Looks for charts in the given root folder.
@@ -111,8 +40,8 @@ def discover_charts(rootname, cb_chartfound=None):
                 except KeyError:
                     # Create new entry for this dir
                     found_by_dirname[dir] = [f, None, dir]
-                    if cb_chartfound:
-                        cb_chartfound(len(found_by_dirname))
+                    if cb_progress:
+                        cb_progress(len(found_by_dirname))
             elif f.endswith("song.ini"):
                 try:
                     # Add to entry for this dir
@@ -120,43 +49,44 @@ def discover_charts(rootname, cb_chartfound=None):
                 except KeyError:
                     # Create new entry for this dir
                     found_by_dirname[dir] = [None, f, dir]
-                    if cb_chartfound:
-                        cb_chartfound(len(found_by_dirname))
+                    if cb_progress:
+                        cb_progress(len(found_by_dirname))
         else:
             # Handle a folder - add subfolders to the search
             unexplored += [os.sep.join([f, name]) for name in os.listdir(f)]
             
     return [tuple(info) for info in found_by_dirname.values() if all(info)]
+
+
+def analyze_chart(
+    filepath,
+    m_difficulty, m_pro, m_bass2x,
+    d_mode, d_value,
+    cb_parsecomplete=None, cb_pathsprogress=None
+):
+    """The full process to go from chart file to hyrecord.
     
-def run_chart(filepath, m_difficulty, m_pro, m_bass2x, d_mode, d_value,
-                cb_parsecomplete=None, cb_pathsprogress=None, cb_pathscomplete=None):
-    """Current chain to go from chart file to hyrecord.
-    
-    First parses either chart format to a Song object,
-    then uses that to create a ScoreGraph, then
-    feeds that into a GraphPather.
+    It's more or less a chain: Chart --> Song --> Graph --> Record.
     
     """
-    t0 = time.perf_counter()
+    # Parse chart file and make a song object
     if filepath.endswith(".mid"):
-        song = hysong.MidiParser().parsefile(filepath, m_difficulty, m_pro, m_bass2x)
+        parser = hysong.MidiParser()
     elif filepath.endswith(".chart"):
-        song = hysong.ChartParser().parsefile(filepath, m_difficulty, m_pro, m_bass2x)
+        parser = hysong.ChartParser()
     else:
         raise hymisc.ChartFileError("Unexpected chart filetype")
+    
+    song = parser.parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     
     if cb_parsecomplete:
         cb_parsecomplete()
     
+    # Use song object to make a score graph
     graph = hypath.ScoreGraph(song)
     
+    # Use score graph to run the paths
     pather = hypath.GraphPather()
     pather.read(graph, d_mode, d_value, cb_pathsprogress)
-    
-    t1 = time.perf_counter()
-    print(f"Ran {len(pather.record.paths)} paths in {t1 - t0:3f} seconds.")
-    
-    if cb_pathscomplete:
-        cb_pathscomplete()
-    
+
     return pather.record

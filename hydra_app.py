@@ -4,15 +4,88 @@ import configparser
 import sqlite3
 import time
 import json
+import hashlib
 
 import dearpygui.dearpygui as dpg
+import dearpygui.demo as demo
 
 import hydra.hymisc as hymisc
 import hydra.hyutil as hyutil
 import hydra.hyrecord as hyrecord
 
-import dearpygui.demo as demo
 
+"""Song Library (database)"""
+
+
+def scan_library():
+    """Makes a database out of the charts found in the given root folder.
+    
+    Replaces the current one if it's already there.
+    
+    """
+    # Map out the file locations first
+    chartfiles = hyutil.discover_charts(appstate.usettings.chartfolder, on_scan_findprogress)
+    on_scan_findcomplete(len(chartfiles))
+    
+    cxn = sqlite3.connect(hymisc.DBPATH)
+    cur = cxn.cursor()
+    
+    # Initialize db
+    chartrow = ','.join(hymisc.TABLE_COL_INFO.keys())
+    cur.execute("DROP TABLE IF EXISTS charts")
+    cur.execute(f"CREATE TABLE charts({chartrow})")
+    
+    # Copy info from each ini to the db
+    for i, (chartfile, inifile, path) in enumerate(chartfiles):        
+        config = configparser.ConfigParser(strict=False, allow_no_value=True)
+        # utf-8 should work but try to do other encodings if it doesn't
+        for codec in ['utf-8', 'utf-8-sig', 'ansi']:
+            try:
+                config.read(inifile, encoding=codec)
+                break
+            except (configparser.MissingSectionHeaderError, UnicodeDecodeError):
+                continue
+       
+        # Song inis have one section
+        if 'Song' in config:
+            metadata = config['Song']
+        elif 'song' in config:
+            metadata = config['song']
+        else:
+            raise hymisc.ChartFileError("Invalid ini format.")
+        
+        # Hash the chart file
+        with open(chartfile, 'rb') as f:
+            hyhash = hashlib.file_digest(f, "md5").hexdigest()
+        
+        # Grab our desired metadata
+        try:
+            name = metadata['name']
+        except KeyError:
+            name = "<unknown name>"
+            
+        try:
+            artist = metadata['artist']
+        except KeyError:
+            artist = "<unknown artist>"
+            
+        try:
+            charter = metadata['charter']
+        except KeyError:
+            charter = "<unknown charter>"
+
+        folder = os.path.relpath(pathlib.Path(path).parent, appstate.usettings.chartfolder)
+
+        # Insert into db
+        rowvalues = (hyhash, name, artist, charter, path, folder)
+        cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
+        on_scan_db_progress(i+1, len(chartfiles))
+    
+    cxn.commit()
+    cxn.close()
+    
+    return len(chartfiles)
+    
 
 """Settings"""
 
@@ -246,23 +319,16 @@ def on_depth_value(sender, app_data):
 def on_depth_mode(sender, app_data):
     appstate.usettings.depth_mode = app_data
     
-def on_scan_charts():
+def on_scan():
     on_viewport_resize()
-    dpg.show_item("scanprogress")
-    count = hyutil.scan_charts(appstate.usettings.chartfolder,
-                       progress_discoveringcharts,
-                       progress_chartsdiscoveredresult,
-                       progress_libraryadd,
-                       )
+    reset_scan_modal()
     
+    dpg.show_item("scanprogress")
+    count = scan_library()
     dpg.configure_item("scanprogress_bar", overlay=f"{count}/{count}")
     dpg.show_item("scanprogress_done")
     time.sleep(1.5)
     dpg.hide_item("scanprogress")
-    dpg.hide_item("scanprogress_chartsfound")
-    dpg.hide_item("scanprogress_bartext")
-    dpg.hide_item("scanprogress_bar")
-    dpg.hide_item("scanprogress_done")
     
     appstate.usettings.lastscanfolder = appstate.usettings.chartfolder
     
@@ -385,12 +451,15 @@ def on_run_chart(sender, app_data, user_data):
     reset_analyze_modal()
     # run chart
     chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0]
-    record = hyutil.run_chart(
+    record = hyutil.analyze_chart(
         chartfile,
         appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
         appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
-        on_analyze_parsecomplete, on_analyze_pathsprogress, on_analyze_pathscomplete
+        on_analyze_parsecomplete, on_analyze_pathsprogress
     )
+    dpg.configure_item("analyze_opt_bar", overlay="")
+    dpg.set_value("analyze_opt_bar", 1)
+    dpg.show_item("analyze_opt_done")
     
     appstate.hyrecordbook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
     
@@ -410,12 +479,12 @@ def on_run_chart(sender, app_data, user_data):
 """Progress callbacks (reactions to processing rather than UI interactions)"""
 
 
-def progress_discoveringcharts(count):
+def on_scan_findprogress(count):
     """As charts are discovered during a scan."""
     indicator = '.' * (count//100 % 5 + 1)
     dpg.set_value("scanprogress_discovering", f"Discovering charts{indicator}")
     
-def progress_chartsdiscoveredresult(count):
+def on_scan_findcomplete(count):
     """When charts have been fully discovered during a scan."""
     dpg.set_value("scanprogress_discovering", f"Discovering charts...")
     dpg.set_value("scanprogress_chartsfound", f"{count} charts found.")
@@ -425,7 +494,7 @@ def progress_chartsdiscoveredresult(count):
     dpg.set_value("scanprogress_bar", 0.0)
     dpg.configure_item("scanprogress_bar", overlay=f"0/{count}")
 
-def progress_libraryadd(count, totalcount):
+def on_scan_db_progress(count, totalcount):
     """As charts are added to library during a scan."""
     dpg.set_value("scanprogress_bar", count/totalcount)
     dpg.configure_item("scanprogress_bar", overlay=f"{count}/{totalcount}")
@@ -470,6 +539,12 @@ def view_showsongdetails():
 """UI population"""
 
 
+def reset_scan_modal():
+    dpg.hide_item("scanprogress_chartsfound")
+    dpg.hide_item("scanprogress_bartext")
+    dpg.hide_item("scanprogress_bar")
+    dpg.hide_item("scanprogress_done")
+    
 def reset_analyze_modal():
     dpg.hide_item("analyze_opt_label")
     dpg.hide_item("analyze_opt_bar")
@@ -485,11 +560,6 @@ def on_analyze_pathsprogress(timecode, progressf):
     s = timecode.measurestr(fixed_width=True) if timecode else ""
     dpg.configure_item("analyze_opt_bar", overlay=s)
     dpg.set_value("analyze_opt_bar", progressf)
-    
-def on_analyze_pathscomplete():
-    dpg.configure_item("analyze_opt_bar", overlay="")
-    dpg.set_value("analyze_opt_bar", 1)
-    dpg.show_item("analyze_opt_done")
 
 def refresh_chartfolder():
     folder = appstate.usettings.chartfolder
@@ -681,7 +751,7 @@ def build_main_ui():
         dpg.add_text("Library folder: uninitialized", tag="chartfoldertext")
         with dpg.group(horizontal=True):
             dpg.add_button(label="Select folder...", callback=on_select_chartfolder)
-            dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan_charts)
+            dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan)
         dpg.add_spacer(height=2)
         dpg.add_separator(label="Library", tag="librarytitle")
         
