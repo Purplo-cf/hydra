@@ -492,7 +492,7 @@ class ChordNote:
         return self.cymbaltype == NoteCymbalType.CYMBAL
     
     def flip_cymbal(self):
-        if self.is_cymbal:
+        if self.is_cymbal():
             self.cymbaltype = NoteCymbalType.NORMAL
         else:
             self.cymbaltype = NoteCymbalType.CYMBAL
