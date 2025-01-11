@@ -301,6 +301,9 @@ class MidiParser:
         self.song = Song()
         self.song.tick_resolution = self.ticks_per_beat
         
+        # Default time sig on tick 0. Will be overridden if the song has one
+        self.song.tpm_changes[0] = self.ticks_per_beat * 4
+        
         with open(filename, 'rb') as f:
             self.song.songhash = hashlib.file_digest(f, "md5").hexdigest()
         
