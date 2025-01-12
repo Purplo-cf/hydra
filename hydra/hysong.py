@@ -5,93 +5,71 @@ import hashlib
 from . import hydata
 from . import hymisc
 
+
 class SongTimestamp:
-    
-    def __init__(self):
-        # Timing from start of the song
-        self.time = 0.0
-        self.measure = 0.0
-        self.beat = 0.0
-        
-        # Tick from start of song
-        self.tick = 0
-        # Measure (int), then ticks into the measure
-        self.measure_tick = (0, 0)
-        # Beat (int), then ticks into the beat
-        self.beat_tick = (0, 0)
-        
+    """Associates a timecode with the notes, time signature, tempo, and other
+    gameplay things active at that point in time."""
+    def __init__(self):      
         self.timecode = None
-        
-        self.beat_earlyhit = None
-        self.beat_latehit = None
-        
-        self.measure_earlyhit = None
-        self.measure_latehit = None
-        
-        # Notes
         self.chord = None
         
-        # Flags
-        self.flag_activation = False
         self.flag_solo = False
         self.flag_sp = False
+        self.activation_length = None
         
-        # to do: completely linked to flag_activation, could be simplified?
-        self.activation_fill_start_beat = None
-        self.activation_fill_length_ticks = None
-        
-        # Meter
         self.tempo = None
         self.ts_numerator = None
         self.ts_denominator = None
 
-# Common and streamlined format for the optimizer to run through.
-# The main structure is an ordered sequence of SongTimestamps.
+    def has_activation(self):
+        return self.activation_length is not None
+
+
 class Song:
-    
+    """The structure for charts that have been loaded in. A sequence of
+    timestamps, plus tempo/meter changes.
+    """
     def __init__(self):
-        self.songhash = None
-        
         self.sequence = []
         
-        self.note_count = 0
-        self.ghost_count = 0
-        self.accent_count = 0
-        self.solo_note_count = 0
+        """This song's conversions from ticks to any other time unit."""
+        self.tick_resolution = None # Ticks per beat, song-wide
+        self.tpm_changes = {} # {Tick: Ticks per measure}. (Time signature)
+        self.bpm_changes = {} # {Tick: Beats per minute}. (Tempo)
         
-        self.tick_resolution = None
-        
-        """The ticks where the ticks per measure / tempo changes."""
-        self.tpm_changes = {}
-        self.bpm_changes = {}
-        
-        self.generated_fills = False
+        """Stub for song-wide analysis."""
+        self.features = []
     
-    # If a chart has no drum fills, add them at measure 3 + 4n, half a measure long, if there's a chord there.
-    # To do: The details of this rule need to be explored
     def check_activations(self):
-        if all([not timestamp.flag_activation for timestamp in self.sequence]):
-            self.generated_fills = True
-            leadin_ts_numerator = self.sequence[0].ts_numerator
-            leadin_ts_denominator = self.sequence[0].ts_denominator
+        """ If a chart has no drum fills, add them in like Clone Hero would.
+        Rule: Add at m3.1.0 + n*(4m), 1/2 m long, if there's a chord there.
+        To do: More testing around this rule. Unit tests.
+        """
+        if all([not ts.has_activation() for ts in self.sequence]):
+            self.features.append('Auto-Generated Fills')
+            ts_numerator = self.sequence[0].ts_numerator
+            ts_denominator = self.sequence[0].ts_denominator
             for timestamp in self.sequence:
                 assert(timestamp.ts_numerator != None)
                 assert(timestamp.ts_denominator != None)
-                if abs(round(timestamp.measure) - timestamp.measure) < 0.00001 and (round(timestamp.measure) - 3) % 4 == 0 and timestamp.chord != None and not timestamp.flag_sp:
-                    timestamp.flag_activation = True
-                    timestamp.activation_fill_start_beat = timestamp.beat - (leadin_ts_numerator / 2) * (4/leadin_ts_denominator)
-                    timestamp.activation_fill_length_ticks = self.tick_resolution * leadin_ts_numerator // 2 * 4 // leadin_ts_denominator
-                leadin_ts_numerator = timestamp.ts_numerator
-                leadin_ts_denominator = timestamp.ts_denominator
+                if (
+                    timestamp.timecode.is_measure_start()
+                    and timestamp.timecode.measure_beats_ticks[0] % 4 == 3
+                    and timestamp.chord
+                    and not timestamp.flag_sp
+                ):
+                    beats = ts_numerator // 2 * 4 // ts_denominator
+                    timestamp.activation_length = self.tick_resolution * beats
+                ts_numerator = timestamp.ts_numerator
+                ts_denominator = timestamp.ts_denominator
 
     def start_time(self):
         return hymisc.Timecode(0, self)
-        
-# Converts midi files to a common format for path analysis
+
+
 class MidiParser:
-    
+    """Converts midi charts to hydra's Song object."""
     def __init__(self):
-        # Song format that we're building up with timestamps
         self.song = None
         
         # The current timestamp, which due to a few retroactive modifiers isn't fully determined until we've hit the next chord in a future timestamp.
@@ -134,13 +112,6 @@ class MidiParser:
             assert(len(self.song.sequence) == 0)
             self.timestamp = SongTimestamp()
             return
-            
-        # Update song-wide info
-        self.song.note_count += self.timestamp.chord.count()
-        self.song.ghost_count += self.timestamp.chord.ghost_count()
-        self.song.accent_count += self.timestamp.chord.accent_count()
-        if self.timestamp.flag_solo:
-            self.song.solo_note_count += self.timestamp.chord.count()
         
         # Add timestamp to song
         self.song.sequence.append(self.timestamp)
@@ -165,13 +136,7 @@ class MidiParser:
                         self.timestamp.chord.apply_disco_flip()
                 self.timestamp.flag_solo = self.solo_active
                 
-                # The actual time stamp.
-                self.timestamp.time = self.elapsed_time
-                self.timestamp.measure = 1 + self.elapsed_measures
-                self.timestamp.beat = self.elapsed_beats
-                self.timestamp.tick = self.elapsed_ticks
-                self.timestamp.measure_tick = (int(self.timestamp.measure), (self.timestamp.measure - int(self.timestamp.measure)) * self.ts_numerator * (4/self.ts_denominator) * self.ticks_per_beat)
-                self.timestamp.beat_tick = (int(self.timestamp.beat), (self.timestamp.beat - int(self.timestamp.beat)) * self.ticks_per_beat)
+                self.timestamp.timecode = hymisc.Timecode(self.elapsed_ticks, None)
                 
                 self.timestamp.tempo = self.tempo
                 self.timestamp.ts_numerator = self.ts_numerator
@@ -183,17 +148,10 @@ class MidiParser:
                 ticks_per_measure = self.ticks_per_beat * self.ts_numerator * (4/self.ts_denominator)
                 max_offset_measures = mido.second2tick(max_offset_seconds, self.ticks_per_beat, self.tempo) / ticks_per_measure
                 
-                self.timestamp.measure_earlyhit = self.timestamp.measure - max_offset_measures
-                self.timestamp.measure_latehit = self.timestamp.measure + max_offset_measures
-                
                 max_offset_beats = mido.second2tick(max_offset_seconds, self.ticks_per_beat, self.tempo) / self.ticks_per_beat
-                self.timestamp.beat_earlyhit = self.timestamp.beat - max_offset_beats
-                self.timestamp.beat_latehit = self.timestamp.beat + max_offset_beats
                 
             if self.fill_primed:
-                self.timestamp.flag_activation = True
-                self.timestamp.activation_fill_start_beat = self.fill_start_beat
-                self.timestamp.activation_fill_length_ticks = self.elapsed_ticks - self.fill_start_tick
+                self.timestamp.activation_length = self.elapsed_ticks - self.fill_start_tick
                 self.fill_primed = False
                 self.fill_start_time = None
                 self.fill_start_measure = None
@@ -304,18 +262,16 @@ class MidiParser:
         # Default time sig on tick 0. Will be overridden if the song has one
         self.song.tpm_changes[0] = self.ticks_per_beat * 4
         
-        with open(filename, 'rb') as f:
-            self.song.songhash = hashlib.file_digest(f, "md5").hexdigest()
-        
         for m in mid:
             self.read_message(m)
         self.push_timestamp()
         
+        # Replace tick-only timecodes with complete ones
         for ts in self.song.sequence:
-            ts.timecode = hymisc.Timecode(ts.tick, self.song)
+            ts.timecode = hymisc.Timecode(ts.timecode.ticks, self.song)
         
         self.song.check_activations()
-        return self.song
+        return self.song 
 
 class ChartSection:
     
@@ -636,9 +592,6 @@ class ChartParser:
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
         
-        with open(filename, 'rb') as chartbin:
-            self.song.songhash = hashlib.file_digest(chartbin, "md5").hexdigest()
-        
         with open(filename, mode='r') as charttxt:
             self.load_sections(charttxt)
             
@@ -651,23 +604,12 @@ class ChartParser:
 
         sp_phrase_endtick = None
         fill_endtick = None
-        fill_starttime = None
-        fill_startmeasure = None
         
         # Loop over the different ticks in the drum chart where things happen
         for tick,tick_entries in self.sections["ExpertDrums"].data.items():
             
             timestamp = SongTimestamp()
             timestamp.chord = hydata.Chord()
-            
-            timestamp.time = self.tick_to_time(tick)
-            timestamp.measure = self.time_to_measure(timestamp.time)
-            timestamp.measure_earlyhit = self.time_to_measure(timestamp.time - 0.070)
-            timestamp.measure_latehit = self.time_to_measure(timestamp.time + 0.070)
-            timestamp.beat = tick / self.resolution
-            timestamp.tick = tick
-            
-            tt = self.tick_timings(tick)
             timestamp.timecode = hymisc.Timecode(tick, self.song)
             
             timestamp.flag_solo = solo_on
@@ -755,11 +697,8 @@ class ChartParser:
                             sp_phrase_endtick = tick + tick_entry.phraselength
                         case 64:
                             # Fill / activation start
-                            assert(fill_endtick == None and fill_starttime == None and fill_startmeasure == None)
+                            assert(fill_endtick == None)
                             fill_endtick = tick + tick_entry.phraselength
-                            fill_starttime = timestamp.time #self.tick_to_time(tick)
-                            fill_startmeasure = timestamp.measure #self.time_to_measure(fill_starttime)
-                            fill_startbeat = timestamp.beat
                             fill_ticklength = tick_entry.phraselength
                         case 65:
                             # Single roll marker
@@ -772,36 +711,18 @@ class ChartParser:
                 
             timestamp.tempo, timestamp.ts_numerator, timestamp.ts_denominator = self.meter_at_tick(tick)
             
-            if len(self.song.sequence) > 0:
-                timestamp.beat_earlyhit = timestamp.beat - (0.070 / 60 * self.song.sequence[-1].tempo)
-            else:
-                timestamp.beat_earlyhit = timestamp.beat - (0.070 / 60 * 120)
-                
-            timestamp.beat_latehit = timestamp.beat + (0.070 / 60 * timestamp.tempo)
-            
             # to do this could be a great way to re-implement the retroactive behavior in the midi parser
             if sp_phrase_endtick != None and tick >= sp_phrase_endtick:
                 self.song.sequence[-1].flag_sp = True
                 sp_phrase_endtick = None
             
             if timestamp.chord.count() > 0:
-                self.song.note_count += timestamp.chord.count()
-                self.song.ghost_count += timestamp.chord.ghost_count()
-                self.song.accent_count += timestamp.chord.accent_count()
-                if timestamp.flag_solo:
-                    self.song.solo_note_count += timestamp.chord.count()
- 
                 self.song.sequence.append(timestamp)
                 
             # Fills apply to the chord on the end tick, if present, so this check happens after adding the timestamp.
             if fill_endtick != None and tick >= fill_endtick:
-                self.song.sequence[-1].flag_activation = True
-                self.song.sequence[-1].activation_fill_start_beat = fill_startbeat
-                self.song.sequence[-1].activation_fill_length_ticks = fill_ticklength
+                self.song.sequence[-1].activation_length = fill_ticklength
                 fill_endtick = None
-                fill_starttime = None
-                fill_startmeasure = None
-                fill_startbeat = None
                 fill_ticklength = None
         
         self.song.check_activations()

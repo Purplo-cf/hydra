@@ -34,8 +34,6 @@ class ScoreGraph:
     """
     def __init__(self, song):
         """Depends on hysong.Song, for all intents and purposes"""
-        self.songhash = song.songhash
-        
         start_time = song.start_time()
         self.base_track_head = ScoreGraphNode(start_time, False)
         self.sp_track_head = ScoreGraphNode(start_time, True)
@@ -148,9 +146,9 @@ class ScoreGraph:
                 
                 
             # handle acts            
-            if timestamp.flag_activation:
+            if timestamp.has_activation():
                 self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_act_edge(timestamp.chord, timestamp_spscore, timestamp.activation_fill_length_ticks, song)
+                self.add_act_edge(timestamp.chord, timestamp_spscore, timestamp.activation_length, song)
                 
                 pending_deacts.add(timestamp.timecode.plusmeasure(4, song))
                 pending_deacts.add(timestamp.timecode.plusmeasure(6, song))

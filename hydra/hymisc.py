@@ -169,6 +169,9 @@ class Timecode:
     
     def __repr__(self):
         return str(self.ticks)
+        
+    def is_measure_start(self):
+        return self.measure_beats_ticks[1] == self.measure_beats_ticks[2] == 0 
     
     def measurestr(self, fixed_width=False):
         m, b, t = self.measure_beats_ticks
