@@ -16,14 +16,40 @@ class SongTimestamp:
         self.flag_solo = False
         self.flag_sp = False
         self.activation_length = None
-        
-        self.tempo = None
-        self.ts_numerator = None
-        self.ts_denominator = None
+
 
     def has_activation(self):
         return self.activation_length is not None
 
+
+class SongIter:
+    def __init__(self, song):
+        self.i = 0
+        self.tick = 0
+        self.tpm_keys = list(song.tpm_changes.keys())
+        self.tpm = song.tpm_changes[self.tpm_keys.pop(0)]
+        self.bpm_keys = list(song.bpm_changes.keys())
+        self.bpm = song.bpm_changes[self.bpm_keys.pop(0)]
+        self.song = song
+
+    def __iter__(self):
+        return self
+        
+    def __next__(self):
+        try:
+            ts = self.song.sequence[self.i]
+            self.i += 1
+        except IndexError:
+            raise StopIteration
+
+        self.tick = ts.timecode.ticks
+        if self.tpm_keys and self.tick >= self.tpm_keys[0]:
+            self.tpm = self.song.tpm_changes[self.tpm_keys.pop(0)]
+        
+        if self.bpm_keys and self.tick >= self.bpm_keys[0]:
+            self.bpm = self.song.bpm_changes[self.bpm_keys.pop(0)]
+        
+        return (ts, self.tpm, self.bpm)
 
 class Song:
     """The structure for charts that have been loaded in. A sequence of
@@ -39,6 +65,9 @@ class Song:
         
         """Stub for song-wide analysis."""
         self.features = []
+        
+    def __iter__(self):
+        return SongIter(self)
     
     def check_activations(self):
         """ If a chart has no drum fills, add them in like Clone Hero would.
@@ -47,21 +76,15 @@ class Song:
         """
         if all([not ts.has_activation() for ts in self.sequence]):
             self.features.append('Auto-Generated Fills')
-            ts_numerator = self.sequence[0].ts_numerator
-            ts_denominator = self.sequence[0].ts_denominator
-            for timestamp in self.sequence:
-                assert(timestamp.ts_numerator != None)
-                assert(timestamp.ts_denominator != None)
+            tpm = self.tpm_changes[0]
+            for timestamp, tpm, bpm in self:
                 if (
                     timestamp.timecode.is_measure_start()
                     and timestamp.timecode.measure_beats_ticks[0] % 4 == 3
                     and timestamp.chord
                     and not timestamp.flag_sp
                 ):
-                    beats = ts_numerator // 2 * 4 // ts_denominator
-                    timestamp.activation_length = self.tick_resolution * beats
-                ts_numerator = timestamp.ts_numerator
-                ts_denominator = timestamp.ts_denominator
+                    timestamp.activation_length = tpm // 2
 
     def start_time(self):
         return hymisc.Timecode(0, self)
@@ -76,17 +99,11 @@ class MidiParser:
         # Some useless midi timepoints (like ones that only have note-offs for drum notes) won't become timestamps.
         self.timestamp = SongTimestamp()
         
-        self.elapsed_time = 0.0
-        self.elapsed_measures = 0.0
-        self.elapsed_beats = 0.0
         self.elapsed_ticks = 0
         self.ticks_per_beat = None
         
         # A fill ended, so the next chord will be marked as an activation (but we need to wait for it to be finalized).
         self.fill_primed = False
-        # We started a fill, so we expect an activation timestamp in the future and when we set it we'll save this info to it.
-        self.fill_start_time = None
-        self.fill_start_measure = None
         
         # The next encountered chord will cause the current timestamp to finalize. 
         self.push_primed = False
@@ -96,10 +113,7 @@ class MidiParser:
         self.solo_active = False
         self.disco_flip = False
         
-        # Current state of params that affect time
-        self.tempo = None
-        self.ts_numerator = 4
-        self.ts_denominator = 4
+
     
     def push_timestamp(self):
         assert(self.song != None)
@@ -138,34 +152,13 @@ class MidiParser:
                 
                 self.timestamp.timecode = hymisc.Timecode(self.elapsed_ticks, None)
                 
-                self.timestamp.tempo = self.tempo
-                self.timestamp.ts_numerator = self.ts_numerator
-                self.timestamp.ts_denominator = self.ts_denominator
-                
-                # Timestamps if hit as early/late as possible.
-                # Will use the time signature at the timestamp - there will be slight error if the time signature changes too close to it.
-                max_offset_seconds = 0.070
-                ticks_per_measure = self.ticks_per_beat * self.ts_numerator * (4/self.ts_denominator)
-                max_offset_measures = mido.second2tick(max_offset_seconds, self.ticks_per_beat, self.tempo) / ticks_per_measure
-                
-                max_offset_beats = mido.second2tick(max_offset_seconds, self.ticks_per_beat, self.tempo) / self.ticks_per_beat
-                
             if self.fill_primed:
                 self.timestamp.activation_length = self.elapsed_ticks - self.fill_start_tick
                 self.fill_primed = False
-                self.fill_start_time = None
-                self.fill_start_measure = None
-                self.fill_start_beat = None
                 self.fill_start_tick = None
                 
             # Update time.
-            ticks_per_measure = self.ticks_per_beat * self.ts_numerator * (4/self.ts_denominator)
-            msg_measures = mido.second2tick(msg.time, self.ticks_per_beat, self.tempo) / ticks_per_measure
-            
-            self.elapsed_time += msg.time
-            self.elapsed_measures += msg_measures
-            self.elapsed_beats += mido.second2tick(msg.time, self.ticks_per_beat, self.tempo) / self.ticks_per_beat
-            self.elapsed_ticks += mido.second2tick(msg.time, self.ticks_per_beat, self.tempo)
+            self.elapsed_ticks += msg.time
         
         # Text marker to begin disco flip - interpret Red as YellowCym and YellowCym as Red
         if msg.type == 'text' and re.fullmatch(r'\[mix.3.drums\d?d\]', msg.text):
@@ -177,17 +170,14 @@ class MidiParser:
         
         # Current tempo
         if msg.type in ['set_tempo']:
-            self.tempo = msg.tempo
-            
             self.song.bpm_changes[self.elapsed_ticks] = 60000000 / msg.tempo
             
         # Time signature
         if msg.type in ['time_signature']:
-            self.ts_numerator = msg.numerator
             self.ts_denominator = msg.denominator
             
             # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
-            self.song.tpm_changes[self.elapsed_ticks] = self.ticks_per_beat * self.ts_numerator * 4 // self.ts_denominator
+            self.song.tpm_changes[self.elapsed_ticks] = self.ticks_per_beat * msg.numerator * 4 // msg.denominator
             
         if msg.type in ['note_on', 'note_off']:
             note_started = msg.type == 'note_on' and msg.velocity > 0
@@ -199,9 +189,6 @@ class MidiParser:
                 case 120:
                     if note_started:
                         # The fill won't appear if it starts too close to gaining 50% sp (or else it'd risk being already in view)
-                        self.fill_start_time = self.elapsed_time
-                        self.fill_start_measure = 1 + self.elapsed_measures
-                        self.fill_start_beat = self.elapsed_beats
                         self.fill_start_tick = self.elapsed_ticks
                     if note_ended:
                         # When time advances, the current chord can be marked as an activation.
@@ -240,38 +227,149 @@ class MidiParser:
                             self.timestamp.chord = hydata.Chord()
                         self.timestamp.chord.add_from_midi(msg.note, msg.velocity)
         
-    def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
-        assert(filename.endswith(".mid"))
+
         
+    def push_timegroup(self, tick):
+        """Process all the events that happened simultaneously on this tick.
+        
+        Because we've collected the events, we can safely do them in order:
+        
+        1. Handle effects that apply to the chord on this tick.
+        2. Build the chord on this tick.
+        3. Handle effects that don't apply to the chord on this tick.
+        
+        In theory, every type of note's start and every type of note's end
+        can be configured to go into one of those three phases.
+        
+        """
+        ts = SongTimestamp()
+        ts.timecode = hymisc.Timecode(tick, self.song)
+        ts.chord = hydata.Chord()
+        
+        # Further parses midi messages into specific charted actions.
+        def optype(msg):
+            is_noteon = (
+                msg.type == 'note_on' and msg.velocity > 0
+            )
+            is_noteoff = (
+                msg.type == 'note_off'
+                or msg.type == 'note_on' and msg.velocity == 0
+            )
+                
+            match msg:
+                case mido.MetaMessage(text=t) if re.fullmatch(r'\[mix.3.drums\d?d\]', t):
+                    return ('disco_on',)
+                case mido.MetaMessage(text=t) if re.fullmatch(r'\[mix.3.drums\d?\]', t):
+                    return ('disco_off',)
+                case mido.Message(type='set_tempo'):
+                    return ('tempo', msg.tempo)
+                case mido.Message(type='time_signature'):
+                    return ('timesig', msg.numerator, msg.denominator)
+                case mido.Message(note=120) if is_noteon:
+                    return ('fill_start',)
+                case mido.Message(note=120) if is_noteoff:
+                    return ('fill_end',)
+                case mido.Message(note=116) if is_noteoff:
+                    return ('sp_end',)
+                case mido.Message(note=112) if is_noteon:
+                    return ('greentom_on',)
+                case mido.Message(note=112) if is_noteoff:
+                    return ('greentom_off',)
+                case mido.Message(note=111) if is_noteon:
+                    return ('bluetom_on',)
+                case mido.Message(note=111) if is_noteoff:
+                    return ('bluetom_off',)
+                case mido.Message(note=110) if is_noteon:
+                    return ('yellowtom_on',)
+                case mido.Message(note=110) if is_noteoff:
+                    return ('yellowtom_off,')
+                case mido.Message(note=103) if is_noteon:
+                    return ('solo_on',)
+                case mido.Message(note=103) if is_noteoff:
+                    return ('solo_off,')
+                case mido.Message(note=100) if is_noteon:
+                    return ('green',)
+                case mido.Message(note=99) if is_noteon:
+                    return ('blue',)
+                case mido.Message(note=98) if is_noteon:
+                    return ('yellow',)
+                case mido.Message(note=97) if is_noteon:
+                    return ('red',)
+                case mido.Message(note=96) if is_noteon:
+                    return ('kick',)
+                case mido.Message(note=95) if is_noteon:
+                    return ('kick2x',)
+                case _:
+                    return None
+        
+        
+        # How to handle each optype
+        def op_disco_on():
+            self.
+        
+        # Finally, *when* to handle each optype
+        debug_fnmap = [debug_optype]
+        # notetype_config = {
+            # (120, 'on'): 'pre', 
+            # (120, 'off'): 
+        
+        
+        
+        # }
+        
+        for msg in self.timegroup:
+            debug_fnmap[0](optype(msg))
+        
+        
+       
+        self.song.sequence.append(ts)
+        self.timegroup = []
+        
+    
+    def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
+        """Reads a chart file and updates self.song."""
+        assert(filename.endswith(".mid"))
         mid = mido.MidiFile(filename)
-        self.ticks_per_beat = mid.ticks_per_beat
         self.mode_difficulty = m_difficulty
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
 
-        # Remove other instruments while keeping events and any un-named or generic tracks
-        for t in mid.tracks:
-            is_nondrum_instrument = t.name.startswith("PART") and t.name != "PART DRUMS"
-            is_harmony_track = t.name in ["HARM1", "HARM2", "HARM3"]
-            if is_nondrum_instrument or is_harmony_track:
-                t.clear()
-                
         self.song = Song()
-        self.song.tick_resolution = self.ticks_per_beat
-        
+        self.song.tick_resolution = mid.ticks_per_beat
         # Default time sig on tick 0. Will be overridden if the song has one
-        self.song.tpm_changes[0] = self.ticks_per_beat * 4
-        
-        for m in mid:
-            self.read_message(m)
-        self.push_timestamp()
-        
-        # Replace tick-only timecodes with complete ones
-        for ts in self.song.sequence:
-            ts.timecode = hymisc.Timecode(ts.timecode.ticks, self.song)
+        self.song.tpm_changes[0] = self.song.tick_resolution * 4
+
+        elapsed_ticks = 0
+        for msg in mid.tracks[0]:
+            elapsed_ticks += msg.time
+            match msg.type:
+                case 'set_tempo':
+                    self.song.bpm_changes[elapsed_ticks] = 60000000 / msg.tempo
+                case 'time_signature':
+                    # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
+                    self.song.tpm_changes[elapsed_ticks] = self.song.tick_resolution * msg.numerator * 4 // msg.denominator
+
+        for t in mid.tracks:
+            if t.name == "PART DRUMS":
+                elapsed_ticks = 0
+                self.timegroup = []
+                self.mod_solo = False
+                self.mod_toms = {98:False, 99:False, 100:False}
+                self.mod_disco = False
+                for msg in t:
+                    if msg.time != 0:
+                        # Process time group first
+                        self.push_timegroup(elapsed_ticks)
+                        elapsed_ticks += msg.time
+                    
+                    # Add message to time group
+                    self.timegroup.append(msg)
+                
+                # Process last time group
+                self.push_timegroup(elapsed_ticks)
+                break
         
         self.song.check_activations()
-        return self.song 
 
 class ChartSection:
     
@@ -499,7 +597,7 @@ class ChartParser:
                     ts_denominator = entry.ts_denominator
         
         
-        return (tempo, ts_numerator, ts_denominator)
+        return ts_denominator
         
     def tick_timings(self, tick):
         ts_numerator = 4
@@ -709,7 +807,6 @@ class ChartParser:
                         case _:
                             raise NotImplementedError(f"Unknown phrase {tick_entry.phrasevalue}, length {tick_entry.phraselength}")
                 
-            timestamp.tempo, timestamp.ts_numerator, timestamp.ts_denominator = self.meter_at_tick(tick)
             
             # to do this could be a great way to re-implement the retroactive behavior in the midi parser
             if sp_phrase_endtick != None and tick >= sp_phrase_endtick:
@@ -726,5 +823,4 @@ class ChartParser:
                 fill_ticklength = None
         
         self.song.check_activations()
-        return self.song
         
