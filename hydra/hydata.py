@@ -440,6 +440,11 @@ class NoteCymbalType(Enum):
     NORMAL = 1
     CYMBAL = 2
 
+    def flip(self):
+        if self == NoteCymbalType.CYMBAL:
+            return NoteCymbalType.NORMAL
+        else:
+            return NoteCymbalType.CYMBAL
 
 class ChordNote:
     """Representation of a note from a chart."""
@@ -492,10 +497,8 @@ class ChordNote:
         return self.cymbaltype == NoteCymbalType.CYMBAL
     
     def flip_cymbal(self):
-        if self.is_cymbal():
-            self.cymbaltype = NoteCymbalType.NORMAL
-        else:
-            self.cymbaltype = NoteCymbalType.CYMBAL
+        raise NotImplementedError
+        self.cymbaltype = self.cymbaltype.flip()
 
 
 class Chord:
@@ -543,6 +546,7 @@ class Chord:
     
     def apply_cymbals(self, yellow_iscym, blue_iscym, green_iscym):
         """Utility to edit notes based on a tom/cymbal flag."""
+        raise NotImplementedError
         for key, flag in [
             (NoteColor.YELLOW, yellow_iscym),
             (NoteColor.BLUE, blue_iscym),
@@ -570,6 +574,7 @@ class Chord:
         self[NoteColor.YELLOW] = red
     
     def add_from_midi(self, note, velocity):
+        raise NotImplementedError
         note_to_color = {
             95: NoteColor.KICK,
             96: NoteColor.KICK,
@@ -595,23 +600,30 @@ class Chord:
         self[color] = newnote
     
     def add_note(self, color):
+        raise NotImplementedError
         assert(self[color] is None)
-        self[color] = ChordNote()
-        self[color].colortype = color
+        note = ChordNote()
+        note.colortype = color
+        self[color] = note
+        return note
     
     def add_2x(self):
+        raise NotImplementedError
         self.add_note(NoteColor.KICK)
         self[NoteColor.KICK].is2x = True
     
     def apply_cymbal(self, color):
+        raise NotImplementedError
         assert(self[color] is not None)
         self[color].cymbaltype = NoteCymbalType.CYMBAL
     
     def apply_ghost(self, color):
+        raise NotImplementedError
         assert(self[color] is not None)
         self[color].dynamictype = NoteDynamicType.GHOST
     
     def apply_accent(self, color):
+        raise NotImplementedError
         assert(self[color] is not None)
         self[color].dynamictype = NoteDynamicType.ACCENT
 
