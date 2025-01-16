@@ -62,13 +62,13 @@ class Song:
     """The structure for charts that have been loaded in. A sequence of
     timestamps, plus tempo/meter changes.
     """
-    def __init__(self):
+    def __init__(self, resolution):
         self.sequence = []
         
         """This song's conversions from ticks to any other time unit."""
-        self.tick_resolution = None # Ticks per beat, song-wide
-        self.tpm_changes = {} # {Tick: Ticks per measure}. (Time signature)
-        self.bpm_changes = {} # {Tick: Beats per minute}. (Tempo)
+        self.tick_resolution = resolution
+        self.tpm_changes = {0: resolution * 4}
+        self.bpm_changes = {}
         
         """Stub for song-wide analysis."""
         self.features = []
@@ -114,7 +114,6 @@ class MidiParser:
         self._flag_cymbals = None
         self._flag_disco = None
         self._fill_start_tick = None
-        
 
     def optype(self, msg, tick):
         """Parses individual midi messages into the actual actions the parser
@@ -208,46 +207,40 @@ class MidiParser:
     
     def op_disco(self, is_on):
         self._flag_disco = is_on
-        
+    
     def op_tempo(self, tick, miditempo):
         self.song.bpm_changes[tick] = 60000000 / miditempo
-        
+    
     def op_timesig(self, tick, numerator, denominator):
         self.song.tpm_changes[tick] = self.song.tick_resolution * numerator * 4 // denominator
-        
+    
     def op_fillstart(self, tick):
         self._fill_start_tick = tick
-        
+    
     def op_fillend(self, tick):
         self.song.sequence[-1].activation_length = tick - self._fill_start_tick
     
     def op_sp_end(self):
         self.song.sequence[-1].flag_sp = True
-        
+    
     def op_tom(self, color, cymbal):
         self._flag_cymbals[color] = cymbal
     
     def op_solo(self, is_on):
         self._flag_solo = is_on
-        
+    
     def op_note(self, color, dynamic, is2x):
         note = self._ts.chord.add_note(color)
         note.dynamictype = dynamic
         if color.allows_cymbals() and self.mode_pro:
             note.cymbaltype = self._flag_cymbals[color]
         note.is2x = is2x
-        
+    
     def push_timestamp(self, tick):
         """Process all the events that happened simultaneously on this tick.
         
-        Because we've collected the events, we can safely do them in order:
-        
-        1. Handle effects that apply to the chord on this tick.
-        2. Build the chord on this tick.
-        3. Handle effects that don't apply to the chord on this tick.
-        
-        In theory, every type of note's start and every type of note's end
-        can be configured to go into one of those three phases.
+        Because we've collected the events, we can easily do them in whichever
+        order as configured in the optype function.
         
         """
         self._ts = SongTimestamp()
@@ -255,7 +248,10 @@ class MidiParser:
         
         ops = [self.optype(msg, tick) for msg in self._msg_buffer]
         
-        # phase
+        # 'pre': Effects that apply before the timestamp is added, such as a 
+        #   'previous chord' mechanic that doesn't include this chord, or
+        #   flags that change the type of note that's about to be created.
+        # 'notes': The actual notes being created.
         for phase in ['pre', 'notes']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
@@ -268,8 +264,8 @@ class MidiParser:
             self._ts.timecode = hymisc.Timecode(tick, self.song)
             self.song.sequence.append(self._ts)
             
-        # Effects that apply after the chord has been added, such as a
-        # 'latest chord' mechanic that includes this chord
+        # 'post': Effects that apply after the timestamp is added, such as a
+        #   'previous chord' mechanic that includes this chord
         for op_phase, op, *op_args in ops:
                 if op_phase == 'post':
                     op(*op_args)
@@ -286,10 +282,7 @@ class MidiParser:
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
 
-        self.song = Song()
-        self.song.tick_resolution = mid.ticks_per_beat
-        # Default time sig on tick 0. Will be overridden if the song has one
-        self.song.tpm_changes[0] = self.song.tick_resolution * 4
+        self.song = Song(mid.ticks_per_beat)
 
         elapsed_ticks = 0
         for msg in mid.tracks[0]:
@@ -298,9 +291,9 @@ class MidiParser:
             op_phase, op, *op_args = self.optype(msg, elapsed_ticks)
             if op_phase == 'time':
                 op(*op_args)
-            
-        for t in mid.tracks:
-            if t.name == "PART DRUMS":
+        
+        for track in mid.tracks:
+            if track.name == "PART DRUMS":
                 # Drum track (won't have tempo / time signatures)
                 elapsed_ticks = 0
                 self._msg_buffer = []
@@ -311,7 +304,7 @@ class MidiParser:
                     hydata.NoteColor.BLUE: hydata.NoteCymbalType.CYMBAL,
                     hydata.NoteColor.YELLOW: hydata.NoteCymbalType.CYMBAL
                 }
-                for msg in t:
+                for msg in track:
                     if msg.time != 0:
                         # Process timestamp first
                         self.push_timestamp(elapsed_ticks)
@@ -641,7 +634,6 @@ class ChartParser:
         return (mm, tm)
             
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
-        self.song = Song()
         self.mode_difficulty = m_difficulty
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
@@ -650,7 +642,7 @@ class ChartParser:
             self.load_sections(charttxt)
             
         self.resolution = int(self.sections["Song"].data["Resolution"][0].property)
-        self.song.tick_resolution = self.resolution
+        self.song = Song(self.resolution)
         
         self.song.tpm_changes, self.song.bpm_changes = self.timing_maps()
         
