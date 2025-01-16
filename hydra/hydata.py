@@ -497,7 +497,6 @@ class ChordNote:
         return self.cymbaltype == NoteCymbalType.CYMBAL
     
     def flip_cymbal(self):
-        raise NotImplementedError
         self.cymbaltype = self.cymbaltype.flip()
 
 
@@ -544,20 +543,6 @@ class Chord:
             krybg += color.notationstr() if note else ' '
         return krybg + "]"
     
-    def apply_cymbals(self, yellow_iscym, blue_iscym, green_iscym):
-        """Utility to edit notes based on a tom/cymbal flag."""
-        raise NotImplementedError
-        for key, flag in [
-            (NoteColor.YELLOW, yellow_iscym),
-            (NoteColor.BLUE, blue_iscym),
-            (NoteColor.GREEN, green_iscym)
-        ]:
-            if self[key] and flag is not None:
-                if flag:
-                    self[key].cymbaltype = NoteCymbalType.CYMBAL
-                else:
-                    self[key].cymbaltype = NoteCymbalType.NORMAL
-    
     def apply_disco_flip(self):
         """Utility to edit notes based on a disco flip flag."""
         red = self[NoteColor.RED]
@@ -573,34 +558,7 @@ class Chord:
         self[NoteColor.RED] = yellow
         self[NoteColor.YELLOW] = red
     
-    def add_from_midi(self, note, velocity):
-        raise NotImplementedError
-        note_to_color = {
-            95: NoteColor.KICK,
-            96: NoteColor.KICK,
-            97: NoteColor.RED,
-            98: NoteColor.YELLOW,
-            99: NoteColor.BLUE,
-            100: NoteColor.GREEN        
-        }
-        
-        color = note_to_color[note]
-        
-        assert(self[color] is None)
-        newnote = ChordNote()
-        newnote.colortype = color
-        if color.allows_dynamics():
-            if velocity == 1:
-                newnote.dynamictype = NoteDynamicType.GHOST
-            elif velocity == 127:
-                newnote.dynamictype = NoteDynamicType.ACCENT
-            else:
-                newnote.dynamictype = NoteDynamicType.NORMAL
-        newnote.is2x = note == 95
-        self[color] = newnote
-    
     def add_note(self, color):
-        raise NotImplementedError
         assert(self[color] is None)
         note = ChordNote()
         note.colortype = color
@@ -608,22 +566,18 @@ class Chord:
         return note
     
     def add_2x(self):
-        raise NotImplementedError
         self.add_note(NoteColor.KICK)
         self[NoteColor.KICK].is2x = True
     
     def apply_cymbal(self, color):
-        raise NotImplementedError
         assert(self[color] is not None)
         self[color].cymbaltype = NoteCymbalType.CYMBAL
     
     def apply_ghost(self, color):
-        raise NotImplementedError
         assert(self[color] is not None)
         self[color].dynamictype = NoteDynamicType.GHOST
     
     def apply_accent(self, color):
-        raise NotImplementedError
         assert(self[color] is not None)
         self[color].dynamictype = NoteDynamicType.ACCENT
 

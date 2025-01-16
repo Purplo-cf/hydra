@@ -16,6 +16,14 @@ class SongTimestamp:
         self.flag_sp = False
         self.activation_length = None
 
+    def __str__(self):
+        if self.flag_sp:
+            mod = ", SP"
+        elif self.activation_length:
+            mod = f", Fill ({self.activation_length})"
+        else:
+            mod = ""
+        return f"[{self.timecode.measurestr()}: {self.chord.rowstr()}{mod}]"
 
     def has_activation(self):
         return self.activation_length is not None
@@ -79,7 +87,7 @@ class Song:
             for timestamp, tpm, bpm in self:
                 if (
                     timestamp.timecode.is_measure_start()
-                    and timestamp.timecode.measure_beats_ticks[0] % 4 == 3
+                    and timestamp.timecode.measure_beats_ticks[0] % 4 == 2
                     and timestamp.chord
                     and not timestamp.flag_sp
                 ):
@@ -146,9 +154,9 @@ class MidiParser:
             case mido.Message(note=120) if is_noteon:
                 return ('pre', self.op_fillstart, tick)
             case mido.Message(note=120) if is_noteoff:
-                return ('pre', self.op_fillend, tick)
+                return ('post', self.op_fillend, tick)
             case mido.Message(note=116) if is_noteoff:
-                return ('post', self.op_sp_end)
+                return ('pre', self.op_sp_end)
             case mido.Message(note=112) if is_noteon:
                 return ('pre', self.op_tom, hydata.NoteColor.GREEN, hydata.NoteCymbalType.NORMAL)
             case mido.Message(note=112) if is_noteoff:
@@ -211,7 +219,7 @@ class MidiParser:
         self._fill_start_tick = tick
         
     def op_fillend(self, tick):
-        self._ts.activation_length = tick - self._fill_start_tick
+        self.song.sequence[-1].activation_length = tick - self._fill_start_tick
     
     def op_sp_end(self):
         self.song.sequence[-1].flag_sp = True
@@ -228,8 +236,6 @@ class MidiParser:
         if color.allows_cymbals() and self.mode_pro:
             note.cymbaltype = self._flag_cymbals[color]
         note.is2x = is2x
-        
-        self._ts.chord[color] = note
         
     def push_timestamp(self, tick):
         """Process all the events that happened simultaneously on this tick.
@@ -250,7 +256,7 @@ class MidiParser:
         ops = [self.optype(msg, tick) for msg in self._msg_buffer]
         
         # phase
-        for phase in ['pre', 'notes', 'post']:
+        for phase in ['pre', 'notes']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
                     op(*op_args)
@@ -261,6 +267,12 @@ class MidiParser:
                 self._ts.chord.apply_disco_flip()
             self._ts.timecode = hymisc.Timecode(tick, self.song)
             self.song.sequence.append(self._ts)
+            
+        # Effects that apply after the chord has been added, such as a
+        # 'latest chord' mechanic that includes this chord
+        for op_phase, op, *op_args in ops:
+                if op_phase == 'post':
+                    op(*op_args)
             
         self._ts = None
         self._msg_buffer = []
