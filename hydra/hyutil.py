@@ -77,13 +77,13 @@ def analyze_chart(
     else:
         raise hymisc.ChartFileError("Unexpected chart filetype")
     
-    song = parser.parsefile(filepath, m_difficulty, m_pro, m_bass2x)
+    parser.parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     
     if cb_parsecomplete:
         cb_parsecomplete()
     
     # Use song object to make a score graph
-    graph = hypath.ScoreGraph(song)
+    graph = hypath.ScoreGraph(parser.song)
     
     # Use score graph to run the paths
     pather = hypath.GraphPather()
