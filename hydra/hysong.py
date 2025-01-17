@@ -98,7 +98,7 @@ class Song:
 
 
 class MidiParser:
-    """Reads a midi file to create a Song object."""
+    """Reads a .mid file to create a Song object."""
     def __init__(self):
         self.song = None
         
@@ -108,7 +108,7 @@ class MidiParser:
         self.mode_bass2x = None
         
         # Parsing state
-        self._ts = None
+        self._chord = None
         self._msg_buffer = None
         self._flag_solo = None
         self._flag_cymbals = None
@@ -230,7 +230,7 @@ class MidiParser:
         self._flag_solo = is_on
     
     def op_note(self, color, dynamic, is2x):
-        note = self._ts.chord.add_note(color)
+        note = self._chord.add_note(color)
         note.dynamictype = dynamic
         if color.allows_cymbals() and self.mode_pro:
             note.cymbaltype = self._flag_cymbals[color]
@@ -243,8 +243,7 @@ class MidiParser:
         order as configured in the optype function.
         
         """
-        self._ts = SongTimestamp()
-        self._ts.chord = hydata.Chord()
+        self._chord = hydata.Chord()
         
         ops = [self.optype(msg, tick) for msg in self._msg_buffer]
         
@@ -256,13 +255,18 @@ class MidiParser:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
                     op(*op_args)
-              
-        if self._ts.chord.count():
-            self._ts.flag_solo = self._flag_solo
+        
+        # Append to the Song
+        if self._chord.count():
+            timestamp = SongTimestamp()
+            timestamp.chord = self._chord
+            timestamp.timecode = hymisc.Timecode(tick, self.song)
+            timestamp.flag_solo = self._flag_solo
             if self._flag_disco:
-                self._ts.chord.apply_disco_flip()
-            self._ts.timecode = hymisc.Timecode(tick, self.song)
-            self.song.sequence.append(self._ts)
+                timestamp.chord.apply_disco_flip()
+            
+            self.song.sequence.append(timestamp)
+            self._chord = None
             
         # 'post': Effects that apply after the timestamp is added, such as a
         #   'previous chord' mechanic that includes this chord
@@ -270,31 +274,34 @@ class MidiParser:
                 if op_phase == 'post':
                     op(*op_args)
             
-        self._ts = None
         self._msg_buffer = []
     
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
-        """Reads a chart file and updates self.song."""
-        assert(filename.endswith(".mid"))
+        """After calling this, self.song will reflect the input filename.
+        Must be .mid.
+        """
+        # Load from MIDI
         mid = mido.MidiFile(filename)
         
+        # Parser settings
         self.mode_difficulty = m_difficulty
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
 
+        # Initialize Song
         self.song = Song(mid.ticks_per_beat)
-
+        
+        # Map tempo and time signatures
         elapsed_ticks = 0
         for msg in mid.tracks[0]:
-            # Look for tempo and time signature events
             elapsed_ticks += msg.time
             op_phase, op, *op_args = self.optype(msg, elapsed_ticks)
             if op_phase == 'time':
                 op(*op_args)
         
+        # Add from the drum track to our Song
         for track in mid.tracks:
             if track.name == "PART DRUMS":
-                # Drum track (won't have tempo / time signatures)
                 elapsed_ticks = 0
                 self._msg_buffer = []
                 self._flag_solo = False
@@ -321,13 +328,18 @@ class MidiParser:
 
 
 class ChartSection:
-    
+    """Much like a config, .chart data goes under a section name."""
     def __init__(self):
         self.name = None
         self.data = {}
 
 class ChartDataEntry:
+    """A bunch of values that are None, or set to a value if this entry in
+    the .chart file was for that value.
     
+    To do: clean how the key works
+    
+    """
     def __init__(self, keystr, valuestr):
         keystr = keystr.strip()
         valuestr = valuestr.strip()
@@ -363,59 +375,40 @@ class ChartDataEntry:
         except ValueError:
             self.key_name = keystr
         
-        # Interpret valuestr
-        tokens = valuestr.split()
-        if not self.is_tick_data():
-            # Single value for a named property (i.e. Song properties)
-            try:
-                self.property = int(valuestr)
-            except ValueError:
-                self.property = valuestr
-        elif tokens[0] == "TS":
-            # Time signature
-            assert(2 <= len(tokens) <= 3)
-            self.ts_numerator = int(tokens[1])
-            self.ts_denominator = 2**int(tokens[2]) if len(tokens) == 3 else 4
-        elif tokens[0] == "B":
-            # BPM
-            assert(len(tokens) == 2)
-            self.tempo_bpm = int(tokens[1]) / 1000.0
-        elif tokens[0] == "E":
-            # Event
-            lyric_events = ['lyric', 'phrase_start', 'phrase_end']
-            anim_events = ['Default', 'crowd_normal', 'crowd_clap', 'crowd_noclap', 'crowd_intense', 'crowd_realtime', 'crowd_mellow', '[idle]', '[idle_realtime]', '[idle_intense]', '[map_HandMap_Default]', '[map_HandMap_DropD]', '[map_HandMap_DropD2]', '[map_StrumMap_Default]', '[map_StrumMap_Pick]', '[play]', '[intense]']
-            structure_events = ['section',  'music_start', 'music_end', 'end']
-            if tokens[1].strip('"') in lyric_events + anim_events + structure_events:
-                # Various events we have no use for
-                self.textevent = ' '.join(tokens[1:])
-            elif tokens[1] == "solo":
+        r_disco_on_x = r'\[mix.3.drums\d?d\]'
+        r_disco_off_x = r'\[mix.3.drums\d?\]'
+            
+        match (valuestr, valuestr.split()):
+            case v, _ if self.key_tick is None:
+                try:
+                    self.property = int(v)
+                except ValueError:
+                    self.property = v
+            case _, ["TS", n]:
+                self.ts_numerator = int(n)
+                self.ts_denominator = 4
+            case _, ["TS", n, d]:
+                self.ts_numerator = int(n)
+                self.ts_denominator = 2**int(d)
+            case _, ["B", bpm]:
+                self.tempo_bpm = int(bpm) / 1000.0
+            case _, ["E", "solo"]:
                 self.solo_start = True
-            elif tokens[1] == "soloend":
+            case _, ["E", "soloend"]:
                 self.solo_end = True
-            elif re.fullmatch(r'\[mix.\d.drums\d?\]', tokens[1]):
+            case _, ["E", event] if re.fullmatch(r_disco_off_x, event):
                 self.discoflip_disable = True
-                self.discoflip_difficulty = tokens[1][5]
-            elif re.fullmatch(r'\[mix.\d.drums\d?d\]', tokens[1]):
+            case _, ["E", event] if re.fullmatch(r_disco_on_x, event):
                 self.discoflip_enable = True
-                self.discoflip_difficulty = tokens[1][5]
-            else:
-                raise NotImplementedError(f"Unknown Event data value in entry: {self.key()} = {valuestr}")
-        elif tokens[0] == "N":
-            # Note
-            assert(len(tokens) == 3)
-            self.notevalue = int(tokens[1])
-            self.notelength = int(tokens[2])
-        elif tokens[0] == "S":
-            # Phrase (sp, activation fill, roll lane)
-            assert(len(tokens) == 3)
-            self.phrasevalue = int(tokens[1])
-            self.phraselength = int(tokens[2])
-        elif tokens[0] == "A":
-            # Anchored BPM (ignored in game)
-            pass
-        else:
-            # Ensures there isn't anything we're missing.
-            raise NotImplementedError(f"Unknown data value in entry: {self.key()} = {valuestr}")
+            case _, ["E", *anywords]:
+                self.textevent = ' '.join(anywords)
+            case _, ["N", v, length]:
+                self.notevalue = int(v)
+                self.notelength = int(length)
+            case _, ["S", v, length]:
+                self.phrasevalue = int(v)
+                self.phraselength = int(length)
+
 
     def is_property(self):
         return self.property != None
@@ -427,348 +420,236 @@ class ChartDataEntry:
         return self.key_tick if self.is_tick_data() else self.key_name
         
 class ChartParser:
-    
+    """Reads a .chart file to create a Song object."""
     def __init__(self):
         self.song = None
         self.sections = {}
         
+        # Parsing mode
+        self.mode_difficulty = None
+        self.mode_pro = None
+        self.mode_bass2x = None
+        
+        # Parsing state
+        self._chord = None
+        self._flag_solo = None
+        self._flag_disco = None
+        self._sp_end_tick = None
+        self._fill_end_tick = None
+        self._fill_length = None
+        
         # Ticks per quarter note
         self.resolution = None
-        
-    # Loads the chartfile's sections from text form so they can be accessed easily.
-    # Also converts from text values to more useful structures.
-    # Also combines multi values within the same section.
+    
     def load_sections(self, charttxt):
+        """Loads the chartfile's sections from text form so they can be 
+        accessed easily.
+        
+        To do: This can be a bit more robust (USE UNIT TESTS)
+        """
         wip_section = None
-        block_depth = 0 # Should only be 0 or 1...
+        open_block = False
         for line in charttxt:
             if wip_section:
                 if line.rstrip() == "{":
-                    assert(block_depth == 0)
-                    block_depth = 1
+                    # Start a block
+                    assert(not open_block)
+                    open_block = True
                 elif line.rstrip() == "}":
-                    assert(block_depth == 1)
-                    block_depth = 0
+                    # End the block and assign the result
+                    assert(open_block)
+                    open_block = False
                     self.sections[wip_section.name] = wip_section
                     wip_section = None
                 else:
-                    assert(block_depth == 1)
+                    # Continue the block and make an entry in it
+                    assert(open_block)
                     lhs = line.split('=')[0].strip()
                     rhs = line.split('=')[1].strip()
                     
                     dataentry = ChartDataEntry(lhs, rhs)
                     
+                    # Multiple entries on the same key can stack
                     if dataentry.key() in wip_section.data:
                         wip_section.data[dataentry.key()].append(dataentry)
                     else:
                         wip_section.data[dataentry.key()] = [dataentry]
             else:
-                assert(block_depth == 0)
+                assert(not open_block)
                 # start a new section
                 wip_section = ChartSection()
                 wip_section.name = re.findall(r'\[.*\]', line)[0][1:-1]
-            
-            
-    # Tick from start of song -> Time from start of song
-    def tick_to_time(self, tick):
-        current_time = 0.0
-        current_tick = 0
-        current_bpm = 120
-        for entry_tick,entries in self.sections["SyncTrack"].data.items():
-            
-            if entry_tick >= tick:
-                current_time += (tick - current_tick) / self.resolution / current_bpm * 60.0
-                return current_time
-            
-            current_time += (entry_tick - current_tick) / self.resolution / current_bpm * 60.0
-            current_tick = entry_tick
-            
-            for entry in entries:
-                if entry.tempo_bpm != None:
-                    current_bpm = entry.tempo_bpm
-                    
-        assert(tick > current_tick)
-        current_time += (tick - current_tick) / self.resolution / current_bpm * 60.0
-        return current_time
+    
+    def optype(self, entry, tick):
+        match entry:
+            case ChartDataEntry(discoflip_enable=True):
+                return ('pre', self.op_disco, True)
+            case ChartDataEntry(discoflip_disable=True):
+                return ('pre', self.op_disco, False)
+            case ChartDataEntry(tempo_bpm=bpm) if bpm is not None:
+                return ('time', self.op_tempo, tick, bpm)
+            case ChartDataEntry(ts_numerator=n, ts_denominator=d) if n:
+                return ('time', self.op_timesig, tick, n, d)
+            case ChartDataEntry(solo_start=True):
+                return ('pre', self.op_solo, True)
+            case ChartDataEntry(solo_end=True):
+                return ('pre', self.op_solo, False)
+            case ChartDataEntry(notevalue=0):
+                return ('notes', self.op_note, hydata.NoteColor.KICK)
+            case ChartDataEntry(notevalue=1):
+                return ('notes', self.op_note, hydata.NoteColor.RED)
+            case ChartDataEntry(notevalue=2):
+                return ('notes', self.op_note, hydata.NoteColor.YELLOW)
+            case ChartDataEntry(notevalue=3):
+                return ('notes', self.op_note, hydata.NoteColor.BLUE)
+            case ChartDataEntry(notevalue=4):
+                return ('notes', self.op_note, hydata.NoteColor.GREEN)
+            case ChartDataEntry(notevalue=32) if self.mode_bass2x:
+                return ('notes', self.op_2x)
+            case ChartDataEntry(notevalue=34):
+                return ('note_mods', self.op_accent, hydata.NoteColor.RED)
+            case ChartDataEntry(notevalue=35):
+                return ('note_mods', self.op_accent, hydata.NoteColor.YELLOW)
+            case ChartDataEntry(notevalue=36):
+                return ('note_mods', self.op_accent, hydata.NoteColor.BLUE)
+            case ChartDataEntry(notevalue=37):
+                return ('note_mods', self.op_accent, hydata.NoteColor.GREEN)
+            case ChartDataEntry(notevalue=40):
+                return ('note_mods', self.op_ghost, hydata.NoteColor.RED)
+            case ChartDataEntry(notevalue=41):
+                return ('note_mods', self.op_ghost, hydata.NoteColor.YELLOW)
+            case ChartDataEntry(notevalue=42):
+                return ('note_mods', self.op_ghost, hydata.NoteColor.BLUE)
+            case ChartDataEntry(notevalue=43):
+                return ('note_mods', self.op_ghost, hydata.NoteColor.GREEN)
+            case ChartDataEntry(notevalue=66) if self.mode_pro:
+                return ('note_mods', self.op_cymbal, hydata.NoteColor.YELLOW)
+            case ChartDataEntry(notevalue=67) if self.mode_pro:
+                return ('note_mods', self.op_cymbal, hydata.NoteColor.BLUE)
+            case ChartDataEntry(notevalue=68) if self.mode_pro:
+                return ('note_mods', self.op_cymbal, hydata.NoteColor.GREEN)
+            case ChartDataEntry(phrasevalue=2, phraselength=length):
+                return ('pre', self.op_sp_start, tick + length)
+            case ChartDataEntry(phrasevalue=64, phraselength=length):
+                return ('pre', self.op_fillstart, tick + length, length)
+            case _:
+                return (None, None)
+    
+    def op_disco(self, is_on):
+        self._flag_disco = is_on
+    
+    def op_tempo(self, tick, bpm):
+        self.song.bpm_changes[tick] = bpm
+    
+    def op_timesig(self, tick, numerator, denominator):
+        self.song.tpm_changes[tick] = self.song.tick_resolution * numerator * 4 // denominator
+    
+    def op_fillstart(self, endtick, length):
+        self._fill_end_tick = endtick
+        self._fill_length = length
+    
+    def op_fillend(self, length):
+        self.song.sequence[-1].activation_length = length
+    
+    def op_sp_start(self, endtick):
+        self._sp_end_tick = endtick
+    
+    def op_sp_end(self):
+        self.song.sequence[-1].flag_sp = True
+    
+    def op_solo(self, is_on):
+        self._flag_solo = is_on
+    
+    def op_note(self, color):
+        self._chord.add_note(color)
+    
+    def op_2x(self):
+        self._chord.add_2x()
+    
+    def op_accent(self, color):
+        self._chord.apply_accent(color)
+    
+    def op_ghost(self, color):
+        self._chord.apply_ghost(color)
+    
+    def op_cymbal(self, color):
+        self._chord.apply_cymbal(color)
+    
+    def push_timestamp(self, tick, entries):
+        # Process all the events that happened simultaneously on this tick.
+        # Because we've collected the events, we can easily do them in
+        # whichever order as configured in the optype function
+        self._chord = hydata.Chord()
         
-    # Time from start of song -> Measure from start of song (first measure is 1)
-    def time_to_measure(self, time):
-        current_time = 0.0
-        current_tick = 0
-        current_bpm = 120
-        current_measure = 1
-        current_ts_numerator = 4
-        current_ts_denominator = 4
-        for entry_tick,entries in self.sections["SyncTrack"].data.items():
-            entry_time = current_time + (entry_tick - current_tick) / self.resolution / current_bpm * 60.0
-            if entry_time >= time:
-                current_measure += (time - current_time) / 60.0 * current_bpm / (current_ts_numerator * (4/current_ts_denominator))
-                return current_measure
-            
-            current_measure += (entry_time - current_time) / 60.0 * current_bpm / (current_ts_numerator * (4/current_ts_denominator))
-            current_time += (entry_tick - current_tick) / self.resolution / current_bpm * 60.0
-            current_tick = entry_tick
-            
-            for entry in entries:
-                if entry.tempo_bpm != None:
-                    current_bpm = entry.tempo_bpm
-                    
-                if entry.ts_numerator != None:
-                    current_ts_numerator = entry.ts_numerator
+        ops = [self.optype(entry, tick) for entry in entries]
+        
+        # ops that come from ticks elapsing, not their own entries
+        if self._sp_end_tick is not None and tick >= self._sp_end_tick:
+            ops.append(('pre', self.op_sp_end))
+            self._sp_end_tick = None
+        
+        if self._fill_end_tick is not None and tick >= self._fill_end_tick:
+            ops.append(('post', self.op_fillend, self._fill_length))
+            self._fill_end_tick = None
+            self._fill_length = None
+        
+        # 'pre': Effects that apply before the timestamp is added, such as a 
+        #   'previous chord' mechanic that doesn't include this chord, or
+        #   flags that change the type of note that's about to be created.
+        # 'notes': The actual notes being created.
+        # 'note_mods': Modifiers for a pre-existing note
+        for phase in ['pre', 'notes', 'note_mods']:
+            for op_phase, op, *op_args in ops:
+                if op_phase == phase:
+                    op(*op_args)
+        
+        # Append to the Song
+        if self._chord.count():
+            timestamp = SongTimestamp()
+            timestamp.chord = self._chord
+            timestamp.timecode = hymisc.Timecode(tick, self.song)
+            timestamp.flag_solo = self._flag_solo
+            if self._flag_disco:
+                timestamp.chord.apply_disco_flip()
                 
-                if entry.ts_denominator != None:
-                    current_ts_denominator = entry.ts_denominator
-                    
-        assert(time > current_time)
-        current_measure += (time - current_time) / 60.0 * current_bpm / (current_ts_numerator * (4/current_ts_denominator))
-        return current_measure
+            self.song.sequence.append(timestamp)
+            self._chord = None
             
-    def meter_at_tick(self, tick):
-        tempo = 120
-        ts_numerator = 4
-        ts_denominator = 4
+        # 'post': Effects that apply after the timestamp is added, such as a
+        #   'previous chord' mechanic that includes this chord
+        for op_phase, op, *op_args in ops:
+            if op_phase == 'post':
+                op(*op_args)
         
-        current_tick = 0
-        for entry_tick,entries in self.sections["SyncTrack"].data.items():
-            if entry_tick > tick:
-                break
-            
-            current_tick = entry_tick
-            
-            for entry in entries:
-                if entry.tempo_bpm != None:
-                    tempo = entry.tempo_bpm
-                    
-                if entry.ts_numerator != None:
-                    ts_numerator = entry.ts_numerator
-                
-                if entry.ts_denominator != None:
-                    ts_denominator = entry.ts_denominator
-        
-        
-        return ts_denominator
-        
-    def tick_timings(self, tick):
-        ts_numerator = 4
-        ts_denominator = 4
-        
-        handled_ticks = 0
-        acc_beat = 0
-        acc_measure = 0
-        beats = 0
-        measures = 0
-        for entry_tick,entries in self.sections["SyncTrack"].data.items():
-            if entry_tick > tick:
-                break
-            
-            new_ticks = entry_tick - handled_ticks
-
-            acc_beat += new_ticks
-            while acc_beat >= self.resolution:
-                acc_beat -= self.resolution
-                beats += 1
-                acc_measure += 1
-                
-            while acc_measure >= ts_numerator:
-                acc_measure -= ts_numerator
-                measures += 1
-            
-            handled_ticks = entry_tick
-            
-            for entry in entries:
-                    
-                if entry.ts_numerator != None:
-                    ts_numerator = entry.ts_numerator
-                
-                if entry.ts_denominator != None:
-                    ts_denominator = entry.ts_denominator
-        
-        new_ticks = tick - handled_ticks
-        acc_beat += new_ticks
-        while acc_beat >= self.resolution:
-            acc_beat -= self.resolution
-            beats += 1
-            acc_measure += 1
-            
-        while acc_measure >= ts_numerator:
-            acc_measure -= ts_numerator
-            measures += 1
-        
-        return ((beats, acc_beat), (measures, acc_measure * self.resolution + acc_beat))
-            
-            
-    def timing_maps(self):
-        ts_numerator = 4
-        ts_denominator = 4
-        current_ticks_per_measure = None
-        mm = {}
-        
-        tempo = None
-        tm = {}
-        for entry_tick,entries in self.sections["SyncTrack"].data.items():
-            
-            for entry in entries:        
-                if entry.ts_numerator != None:
-                    ts_numerator = entry.ts_numerator
-                    
-                    # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
-                    update = self.resolution * ts_numerator * 4 // ts_denominator
-                    if current_ticks_per_measure != update:
-                        current_ticks_per_measure = update
-                        mm[entry_tick] = current_ticks_per_measure
-                
-                if entry.ts_denominator != None:
-                    ts_denominator = entry.ts_denominator
-                    
-                    # ticks/beat * subdivisions/measure * beats/subdivision = ticks/measure
-                    update = self.resolution * ts_numerator * 4 // ts_denominator
-                    if current_ticks_per_measure != update:
-                        current_ticks_per_measure = update
-                        mm[entry_tick] = current_ticks_per_measure
-            
-                if entry.tempo_bpm != None and entry.tempo_bpm != tempo:
-                    tempo = entry.tempo_bpm
-                    
-                    tm[entry_tick] = tempo
-            
-        return (mm, tm)
-            
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
+        """After calling this, self.song will reflect the input filename.
+        Must be .chart.
+        """
+        # Load from txt
+        with open(filename, mode='r') as charttxt:
+            self.load_sections(charttxt)
+        
+        # Parser settings
         self.mode_difficulty = m_difficulty
         self.mode_pro = m_pro
         self.mode_bass2x = m_bass2x
         
-        with open(filename, mode='r') as charttxt:
-            self.load_sections(charttxt)
-            
-        self.resolution = int(self.sections["Song"].data["Resolution"][0].property)
-        self.song = Song(self.resolution)
+        # Initialize Song
+        tick_resolution = int(self.sections["Song"].data["Resolution"][0].property)
+        self.song = Song(tick_resolution)
         
-        self.song.tpm_changes, self.song.bpm_changes = self.timing_maps()
+        # Map tempo and time signatures
+        for entry_tick, entries in self.sections["SyncTrack"].data.items():
+            for entry in entries:
+                op_phase, op, *op_args = self.optype(entry, entry_tick)
+                if op_phase == 'time':
+                    op(*op_args)
         
-        solo_on = False
-
-        sp_phrase_endtick = None
-        fill_endtick = None
+        self._flag_solo = False
+        self._flag_disco = False
         
-        # Loop over the different ticks in the drum chart where things happen
-        for tick,tick_entries in self.sections["ExpertDrums"].data.items():
-            
-            timestamp = SongTimestamp()
-            timestamp.chord = hydata.Chord()
-            timestamp.timecode = hymisc.Timecode(tick, self.song)
-            
-            timestamp.flag_solo = solo_on
-            # Loop over the things happening on this tick
-            # Sort note values ascending to make the order of adding/modifying notes completely predictable
-            for tick_entry in sorted(tick_entries, key=lambda e: e.notevalue if e.notevalue != None else -1):
-                assert(tick_entry.is_tick_data())
-                
-                if tick_entry.solo_start == True:
-                    assert(not solo_on)
-                    solo_on = True
-                    
-                    # We passed the normal spot where solo_on is applied, but we want to include this tick's chord in the solo.
-                    timestamp.flag_solo = True
-                
-                if tick_entry.solo_end == True:
-                    assert(solo_on)
-                    solo_on = False
-                
-                if tick_entry.notevalue != None:
-                    match tick_entry.notevalue:
-                        case 0:
-                            # Kick note
-                            timestamp.chord.add_note(hydata.NoteColor.KICK)
-                        case 1:
-                            # Red note
-                            timestamp.chord.add_note(hydata.NoteColor.RED)
-                        case 2:
-                            # Yellow note
-                            timestamp.chord.add_note(hydata.NoteColor.YELLOW)
-                        case 3:
-                            # Blue note
-                            timestamp.chord.add_note(hydata.NoteColor.BLUE)
-                        case 4:
-                            # Green note
-                            timestamp.chord.add_note(hydata.NoteColor.GREEN)
-                        case 32:
-                            # 2x Kick note
-                            if self.mode_bass2x:
-                                timestamp.chord.add_2x()
-                        case 34:
-                            # Red accent
-                            timestamp.chord.apply_accent(hydata.NoteColor.RED)
-                        case 35:
-                            # Yellow accent
-                            timestamp.chord.apply_accent(hydata.NoteColor.YELLOW)
-                        case 36:
-                            # Blue accent
-                            timestamp.chord.apply_accent(hydata.NoteColor.BLUE)
-                        case 37:
-                            # Green accent
-                            timestamp.chord.apply_accent(hydata.NoteColor.GREEN)
-                        case 40:
-                            # Red ghost
-                            timestamp.chord.apply_ghost(hydata.NoteColor.RED)
-                        case 41:
-                            # Yellow ghost
-                            timestamp.chord.apply_ghost(hydata.NoteColor.YELLOW)
-                        case 42:
-                            # Blue ghost
-                            timestamp.chord.apply_ghost(hydata.NoteColor.BLUE)
-                        case 43:
-                            # Green ghost
-                            timestamp.chord.apply_ghost(hydata.NoteColor.GREEN)
-                        case 66:
-                            # Yellow cymbal
-                            if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hydata.NoteColor.YELLOW)
-                        case 67:
-                            # Blue cymbal
-                            if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hydata.NoteColor.BLUE)
-                        case 68:
-                            # Green cymbal
-                            if self.mode_pro:
-                                timestamp.chord.apply_cymbal(hydata.NoteColor.GREEN)
-                        case _:
-                            raise NotImplementedError(f"Unknown note {tick_entry.notevalue}")
-                
-                if tick_entry.phrasevalue != None:
-                    match tick_entry.phrasevalue:
-                        case 2:
-                            # SP phrase start
-                            assert(sp_phrase_endtick == None)
-                            sp_phrase_endtick = tick + tick_entry.phraselength
-                        case 64:
-                            # Fill / activation start
-                            assert(fill_endtick == None)
-                            fill_endtick = tick + tick_entry.phraselength
-                            fill_ticklength = tick_entry.phraselength
-                        case 65:
-                            # Single roll marker
-                            pass 
-                        case 66:
-                            # Double roll marker
-                            pass
-                        case _:
-                            raise NotImplementedError(f"Unknown phrase {tick_entry.phrasevalue}, length {tick_entry.phraselength}")
-                
-            
-            # to do this could be a great way to re-implement the retroactive behavior in the midi parser
-            if sp_phrase_endtick != None and tick >= sp_phrase_endtick:
-                self.song.sequence[-1].flag_sp = True
-                sp_phrase_endtick = None
-            
-            if timestamp.chord.count() > 0:
-                self.song.sequence.append(timestamp)
-                
-            # Fills apply to the chord on the end tick, if present, so this check happens after adding the timestamp.
-            if fill_endtick != None and tick >= fill_endtick:
-                self.song.sequence[-1].activation_length = fill_ticklength
-                fill_endtick = None
-                fill_ticklength = None
+        # Add from the drum chart to our Song
+        for tick, tick_entries in self.sections["ExpertDrums"].data.items():
+            self.push_timestamp(tick, tick_entries)
         
         self.song.check_activations()
-        
