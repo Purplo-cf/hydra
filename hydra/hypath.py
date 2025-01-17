@@ -8,6 +8,17 @@ from . import hydata
 from . import hymisc
 
 
+def to_multiplier(combo):
+    if combo < 10:
+        return 1
+    elif combo < 20:
+        return 2
+    elif combo < 30:
+        return 3
+    else:
+        return 4
+    
+
 class ScoreGraph:
     """Description of a song in terms of pathing choices and outcomes.
     
@@ -33,7 +44,6 @@ class ScoreGraph:
     
     """
     def __init__(self, song):
-        """Depends on hysong.Song, for all intents and purposes"""
         start_time = song.start_time()
         self.base_track_head = ScoreGraphNode(start_time, False)
         self.sp_track_head = ScoreGraphNode(start_time, True)
@@ -60,13 +70,15 @@ class ScoreGraph:
         
         backend_history = [] # Timestamps back to -140ms
         self.live_backend_edges = [] # deactivation edges that are accepting scored timestamps up to +140ms
-        for ts_i, timestamp in enumerate(song.sequence):
+        
+        
+        for timestamp in song.sequence:
             
+            # uses timestamp's ms, which is higher, to reduce self.recent_deacts
             self.recent_deacts = [tc for tc in self.recent_deacts if timestamp.timecode.ms - tc.ms < 140]
             
             # handle any deacts that occur between timestamps
             gap_deacts = sorted([tc for tc in pending_deacts if tc < timestamp.timecode])
-
             for pending_deact in gap_deacts:
                 # Update backend history (but there aren't any new ones)
                 backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
@@ -110,7 +122,6 @@ class ScoreGraph:
             
             # Add this chord's sp points to any deactivation that happened recently
                 
-            #self.live_backend_edges = [e for e in self.live_backend_edges if e.dest.timecode.offset_ms(timestamp.timecode) < 140]
             valid_backend_edges = []
             for e in self.live_backend_edges:
                 e_offset = timestamp.timecode.ms - e.dest.timecode.ms
@@ -163,24 +174,22 @@ class ScoreGraph:
                 self.recent_deacts.append(timestamp.timecode)
             
         self.advance_tracks(song.sequence[-1].timecode, song.sequence[-1].chord)
-        
-
-        
+    
     def advance_tracks(self, timecode, chord):
         if self.base_track_head.timecode >= timecode: 
             return
-            
+        
         self.length += 1
-            
+        
         base_edge = ScoreGraphEdge()
         sp_edge = ScoreGraphEdge()
         
         base_edge.dest = ScoreGraphNode(timecode, False)
         sp_edge.dest = ScoreGraphNode(timecode, True)
-            
+        
         base_edge.dest.chord = chord
         sp_edge.dest.chord = chord
-            
+        
         base_edge.notecount = self.acc_notecount
         sp_edge.notecount = self.acc_notecount
         
@@ -222,11 +231,8 @@ class ScoreGraph:
         
         self.base_track_head = base_edge.dest
         self.sp_track_head = sp_edge.dest
-        
-            
+    
     def add_act_edge(self, frontend_chord, frontend_points, fill_length_ticks, song):
-
-        
         act_edge = ScoreGraphEdge()
         act_edge.dest = self.sp_track_head
         
@@ -244,12 +250,8 @@ class ScoreGraph:
         act_edge.activation_fill_deadline = hymisc.Timecode(act_edge.dest.timecode.ticks - 2 * fill_length_ticks, song)
         
         act_edge.activation_initial_end_times = {sp: act_edge.dest.timecode.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
-        
-        
         self.base_track_head.branch_edge = act_edge
-        
-
-        
+    
     def add_deact_edge(self, prior_backends, song):
         deact_edge = ScoreGraphEdge()
         deact_edge.dest = self.base_track_head
@@ -277,30 +279,16 @@ class ScoreGraph:
                 deact_edge.sqinout_amount += 1
                 deact_edge.sqinout_indicator_time = deact_edge.sqinout_indicator_time.plusmeasure(2, song)
         
-        #deact_edge.backends = prior_backends
-        
         self.live_backend_edges.append(deact_edge)
-        
         self.sp_track_head.branch_edge = deact_edge
-        
-    def traverse_print(self):
-        unexplored = [self.start]
-        visited = []
-        
-        while len(unexplored) > 0:
-            node = unexplored.pop()
-            visited.append(node)
-            print(node)
-            
-            for edge in [node.adv_edge, node.branch_edge]:
-                if edge != None and edge.dest not in visited and edge.dest not in unexplored:
-                    unexplored.append(edge.dest)
-        
-# A graph node representing a point in the song and whether SP is active or not.
-# The only possible edges are 1 prog edge leading farther into the song,
-# or 1 branch node toggling SP.
+
+
 class ScoreGraphNode:
+    """Represents a point in the song and whether SP is active or not.
     
+    The only possible edges are 1 advancing edge leading farther into the song 
+    and 1 branch node that does not move forward but toggles SP.
+    """
     def __init__(self, timecode, is_sp):
         self.timecode = timecode
 
@@ -308,23 +296,38 @@ class ScoreGraphNode:
         self.branch_edge = None
         self.is_sp = is_sp
         self.chord = None
-        
+    
     def __repr__(self):
         lines = [self.name()]
         if self.adv_edge:
             lines.append(self.adv_edge.__repr__())
         if self.branch_edge:
             lines.append(self.branch_edge.__repr__())
-                    
-        return '\n'.join(lines)
         
+        return '\n'.join(lines)
+    
     def name(self):
         return f"{self.timecode.measurestr()}{' SP' if self.is_sp else ''}"
-        
+
+
 class ScoreGraphEdge:
-        
+    """Represents a movement from one node in the graph to another.
+    
+    Edges store information so that when a path uses an edge, the path
+    simply adds to itself whatever is stored on that edge.
+    
+    The three possible movements:
+    - Advancing further into the song
+    - Activating SP (branch)
+    - Deactivating SP (branch)
+    
+    The graph is created such that every possible place where it's possible
+    to activate or run out of SP has a branch edge there.
+    
+    """
     def __init__(self):
-        # CH-style score breakdown
+        self.dest = None
+        
         self.basescore = None
         self.comboscore = None
         self.spscore = None
@@ -334,8 +337,6 @@ class ScoreGraphEdge:
         
         self.notecount = None
         self.sp_times = []
-        
-        self.dest = None
         
         self.frontend = None
         self.backends = []
@@ -352,8 +353,7 @@ class ScoreGraphEdge:
         self.sqinout_timing = None
         self.sqinout_amount = 0
         self.sqinout_indicator_time = None
-
-        
+    
     def __repr__(self):
         return f" --> {self.dest.name()}, frontend = {self.frontend}"
     
@@ -811,14 +811,4 @@ def sourcescores(chord, combo):
             sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
                 
     return (points_by_source, sqout_reduction, msq_points)
-    
-def to_multiplier(combo):
-    if combo < 10:
-        return 1
-    elif combo < 20:
-        return 2
-    elif combo < 30:
-        return 3
-    else:
-        return 4
     
