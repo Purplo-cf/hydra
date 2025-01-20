@@ -44,136 +44,171 @@ class ScoreGraph:
     
     """
     def __init__(self, song):
-        start_time = song.start_time()
-        self.base_track_head = ScoreGraphNode(start_time, False)
-        self.sp_track_head = ScoreGraphNode(start_time, True)
+        self.base_track_head = ScoreGraphNode(song.start_time(), False)
+        self.sp_track_head = ScoreGraphNode(song.start_time(), True)
         
+        
+        # Finished state
+        self.song = song
         self.start = self.base_track_head
-        pending_deacts = set([])
-        
         self.length = 0
         
-        self.acc_notecount = 0
-        self.acc_basescore = 0
-        self.acc_comboscore = 0
-        self.acc_spscore = 0
-        self.acc_soloscore = 0
-        self.acc_accentscore = 0
-        self.acc_ghostscore = 0
-        self.combo = 0
-        
-        self.acc_sp_phrases = [] # array of (timecode, map of timecodes: extended timecodes factoring cap into account)
-        
-        self.acc_multsqueezes = []
-        
-        self.recent_deacts = []
-        
-        backend_history = [] # Timestamps back to -140ms
-        self.live_backend_edges = [] # deactivation edges that are accepting scored timestamps up to +140ms
-        
+        # Processing state
+        self._head_time = None
+        self._combo = 0
+        self._pending_deacts = set([])
+        self._recent_deact_edges = []       # Used for SqIn backend detection (notes after deacts are usually Out, but recent deacts can make it a SqIn)
+        self._recent_backends = []          # Used for SqOut detection (notes before deacts are usually In, but recent notes can be SqOut)
+        self._proto_base_edge = ScoreGraphEdge()
+        self._proto_sp_edge = ScoreGraphEdge()
         
         for timestamp in song.sequence:
-            
-            # uses timestamp's ms, which is higher, to reduce self.recent_deacts
-            self.recent_deacts = [tc for tc in self.recent_deacts if timestamp.timecode.ms - tc.ms < 140]
-            
-            # handle any deacts that occur between timestamps
-            gap_deacts = sorted([tc for tc in pending_deacts if tc < timestamp.timecode])
-            for pending_deact in gap_deacts:
-                # Update backend history (but there aren't any new ones)
-                backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
-                self.advance_tracks(pending_deact, None)
-                self.add_deact_edge(backend_history, song)
-                if timestamp.timecode.ms - pending_deact.ms < 140:
-                    self.recent_deacts.append(pending_deact)
+            # SP can fall off between timestamps, so handle those first if any.
+            for pending_deact in sorted(list(self._pending_deacts)):
+                if pending_deact >= timestamp.timecode:
+                    break
+                self.set_head_time(pending_deact)
+                self.handle_deact(pending_deact, None)
                     
-            # remove the deacts we just handled
-            pending_deacts = set([tc for tc in pending_deacts if tc not in gap_deacts])
+            self.set_head_time(timestamp.timecode)
             
-            self.acc_notecount += timestamp.chord.count()
-            self.acc_soloscore += 100 * timestamp.chord.count() if timestamp.flag_solo else 0
+            self.store_notecount(timestamp.chord.count())
+            if timestamp.flag_solo:
+                self.store_soloscore(100 * timestamp.chord.count())
             
-            points_by_source, sqout_reduction, msq_points = sourcescores(timestamp.chord, self.combo)
+            score_groups = category_scores(timestamp.chord, self._combo)
             
-            comboscore = points_by_source['combo_note'] + points_by_source['combo_cymbal'] + points_by_source['combodynamic_note'] + points_by_source['combodynamic_cymbal']
+            if pts := score_groups['msq_points']:
+                self.store_multsqueeze(timestamp.chord, pts)
             
-            if msq_points != 0:
-                msq = hydata.MultSqueeze()
-                msq.multiplier = to_multiplier(self.combo) + 1
-                msq.chord = timestamp.chord
-                msq.points = msq_points
-                msq.squeezecount = (self.combo + timestamp.chord.count()) % 10 + 1
-                self.acc_multsqueezes.append(msq)
+            self.store_basescore(score_groups['base'])
+            self.store_comboscore(score_groups['combo'])
+            self.store_spscore(score_groups['sp'])
+            self.store_accentscore(score_groups['accent'])
+            self.store_ghostscore(score_groups['ghost'])
             
-            self.acc_basescore += points_by_source['base_note'] + points_by_source['base_cymbal'] + points_by_source['dynamic_cymbal']
-            self.acc_comboscore += comboscore
-            timestamp_spscore = points_by_source['sp_note'] + points_by_source['sp_cymbal'] + points_by_source['combosp_note'] + points_by_source['combosp_cymbal'] + points_by_source['spdynamic_note'] + points_by_source['spdynamic_cymbal'] + points_by_source['combospdynamic_note'] + points_by_source['combospdynamic_cymbal']
-            self.acc_spscore += timestamp_spscore
-            self.acc_accentscore += points_by_source['dynamic_note_accent']
-            self.acc_ghostscore += points_by_source['dynamic_note_ghost']
+            self._combo += timestamp.chord.count()
             
-            self.combo += timestamp.chord.count()
+            self.store_new_backend(timestamp, score_groups['sp'], score_groups['sp'] - score_groups['sqout_reduction'])
             
-            _backend = (hydata.BackendSqueeze(timestamp.timecode, timestamp.chord, timestamp_spscore, timestamp_spscore - sqout_reduction), timestamp.flag_sp)
-            
-            # Add this chord's sp points to backends that will be fed to any deactivation that happens soon
-            backend_history = [be for be in backend_history if timestamp.timecode.ms - be[0].timecode.ms < 140]
-            backend_history.append(_backend)
-            
-            # Add this chord's sp points to any deactivation that happened recently
-                
-            valid_backend_edges = []
-            for e in self.live_backend_edges:
-                e_offset = timestamp.timecode.ms - e.dest.timecode.ms
-                if e_offset < 140:
-                    valid_backend_edges.append(e)
-                    edge_backend = copy.copy(_backend)
-                    edge_backend[0].offset_ms = e_offset
-                    e.backends.append(edge_backend)
-                    
-                    if edge_backend[1]: # backend is also sp
-                        offset = edge_backend[0].timecode.ms - e.dest.timecode.ms
-                        e.sqinout_time = min(e.sqinout_time, edge_backend[0].timecode)  if e.sqinout_time else edge_backend[0].timecode
-                        e.sqinout_timing = min(e.sqinout_timing, offset) if e.sqinout_timing != None else offset
-                        e.sqinout_amount += 1
-                        e.sqinout_indicator_time = e.sqinout_indicator_time.plusmeasure(2, song)
-            self.live_backend_edges = valid_backend_edges
-                    
             if timestamp.flag_sp:
                 # If any deacts are only the squeeze window away (140ms), keep a non-extended copy of them (SqOut)
-                sqout_deacts = set([tc for tc in pending_deacts if tc.ms - timestamp.timecode.ms < 140])
+                sqout_deacts = set([tc for tc in self._pending_deacts if tc.ms - timestamp.timecode.ms < 140])
                 
                 # Deact timecodes that can be extended by this sp: current pending deacts as well as very recently handled deacts (SqIn)
-                extendable_tcs = pending_deacts.union(set(self.recent_deacts))
+                extendable_tcs = self._pending_deacts.union(set([e.dest.timecode for e in self._recent_deact_edges]))
                 
                 # Deact timecodes after extension: end time + 2 measures or capped at now + 8 measures
                 extension_map = {tc: min(tc.plusmeasure(2, song), timestamp.timecode.plusmeasure(8, song)) for tc in extendable_tcs}
                 
                 # Update deacts
-                pending_deacts = set(extension_map.values()).union(sqout_deacts)
+                self._pending_deacts = set(extension_map.values()).union(sqout_deacts)
                 
                 # Save info on the graph
-                self.acc_sp_phrases.append((timestamp.timecode, extension_map))
-                
+                self._proto_base_edge.sp_times.append((timestamp.timecode, extension_map))
+                self._proto_sp_edge.sp_times.append((timestamp.timecode, extension_map))
                 
             # handle acts            
             if timestamp.has_activation():
                 self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_act_edge(timestamp.chord, timestamp_spscore, timestamp.activation_length, song)
+                self.add_act_edge(timestamp.chord, score_groups['sp'], timestamp.activation_length, song)
                 
-                pending_deacts.add(timestamp.timecode.plusmeasure(4, song))
-                pending_deacts.add(timestamp.timecode.plusmeasure(6, song))
-                pending_deacts.add(timestamp.timecode.plusmeasure(8, song))
+                self._pending_deacts.add(timestamp.timecode.plusmeasure(4, song))
+                self._pending_deacts.add(timestamp.timecode.plusmeasure(6, song))
+                self._pending_deacts.add(timestamp.timecode.plusmeasure(8, song))
                 
             # handle deacts
-            if timestamp.timecode in pending_deacts:
-                self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_deact_edge(backend_history, song)
-                pending_deacts.remove(timestamp.timecode)
-                
-                self.recent_deacts.append(timestamp.timecode)
+            if timestamp.timecode in self._pending_deacts:
+                self.handle_deact(timestamp.timecode, timestamp.chord)
             
         self.advance_tracks(song.sequence[-1].timecode, song.sequence[-1].chord)
+    
+    def store_notecount(self, count):
+        self._proto_base_edge.notecount += count
+        self._proto_sp_edge.notecount += count
+        
+    def store_soloscore(self, points):
+        self._proto_base_edge.soloscore += points
+        self._proto_sp_edge.soloscore += points
+        
+    def store_basescore(self, points):
+        self._proto_base_edge.basescore += points
+        self._proto_sp_edge.basescore += points
+        
+    def store_comboscore(self, points):
+        self._proto_base_edge.comboscore += points
+        self._proto_sp_edge.comboscore += points
+        
+    def store_spscore(self, points):
+        self._proto_sp_edge.spscore += points
+        
+    def store_accentscore(self, points):
+        self._proto_base_edge.accentscore += points
+        self._proto_sp_edge.accentscore += points
+        
+    def store_ghostscore(self, points):
+        self._proto_base_edge.ghostscore += points
+        self._proto_sp_edge.ghostscore += points
+        
+    def store_multsqueeze(self, chord, points):
+        msq = hydata.MultSqueeze()
+        msq.multiplier = to_multiplier(self._combo) + 1
+        msq.chord = chord
+        msq.points = points
+        msq.squeezecount = (self._combo + chord.count()) % 10 + 1
+        self._proto_base_edge.multsqueezes.append(msq)
+        self._proto_sp_edge.multsqueezes.append(msq)
+    
+    def store_new_backend(self, timestamp, sp_points, sqout_points):
+        """Create a backend and apply it to recent deact edges.
+        These backends are late, i.e. they have positive offsets.
+        """
+        backend = hydata.BackendSqueeze(
+            timestamp.timecode, timestamp.chord,
+            sp_points, sqout_points,
+            timestamp.flag_sp
+        )
+        
+        self._recent_backends.append(backend)
+        
+        for recent_edge in self._recent_deact_edges:
+            offset_ms = timestamp.timecode.ms - recent_edge.dest.timecode.ms
+            recent_edge.backends.append(copy.copy(backend))
+            recent_edge.backends[-1].offset_ms = offset_ms
+            
+            if recent_edge.backends[-1].is_sp:
+                if not recent_edge.sqinout_amount:
+                    # SqIn timing is only relevant for the 1st sp backend encountered
+                    # If there are more than 1, it's probably a charting error, but ya know
+                    recent_edge.sqinout_time = timestamp.timecode
+                    recent_edge.sqinout_timing = offset_ms
+                    
+                    # Reintroduce a deact time for the SqIn
+                    #self._pending_deacts.add()
+                    
+                recent_edge.sqinout_indicator_time = recent_edge.sqinout_indicator_time.plusmeasure(2, self.song)
+                recent_edge.sqinout_amount += 1
+                
+
+        
+    def head_time_offset(self, timecode):
+        return self._head_time.ms - timecode.ms
+        
+    def is_recent_to_head(self, timecode):
+        return self.head_time_offset(timecode) < 140
+        
+    def set_head_time(self, timecode):
+        """ Update head time and any mechanics based on being 'recent'"""
+        self._head_time = timecode
+        self._recent_deact_edges = [edge for edge in self._recent_deact_edges if self.is_recent_to_head(edge.dest.timecode)]
+        self._recent_backends = [be for be in self._recent_backends if self.is_recent_to_head(be.timecode)]
+
+    def handle_deact(self, deact_tc, chord):
+        if deact_tc not in self._pending_deacts:
+            return
+        self.advance_tracks(deact_tc, chord)
+        self.add_deact_edge()
+        self._pending_deacts.remove(deact_tc)
     
     def advance_tracks(self, timecode, chord):
         if self.base_track_head.timecode >= timecode: 
@@ -181,56 +216,19 @@ class ScoreGraph:
         
         self.length += 1
         
-        base_edge = ScoreGraphEdge()
-        sp_edge = ScoreGraphEdge()
-        
-        base_edge.dest = ScoreGraphNode(timecode, False)
-        sp_edge.dest = ScoreGraphNode(timecode, True)
-        
-        base_edge.dest.chord = chord
-        sp_edge.dest.chord = chord
-        
-        base_edge.notecount = self.acc_notecount
-        sp_edge.notecount = self.acc_notecount
-        
-        base_edge.basescore = self.acc_basescore
-        base_edge.comboscore = self.acc_comboscore
-        base_edge.spscore = 0
-        base_edge.soloscore = self.acc_soloscore
-        base_edge.accentscore = self.acc_accentscore
-        base_edge.ghostscore = self.acc_ghostscore
-        
-        base_edge.sp_times = self.acc_sp_phrases
-        
-        sp_edge.basescore = self.acc_basescore
-        sp_edge.comboscore = self.acc_comboscore
-        sp_edge.spscore = self.acc_spscore
-        sp_edge.soloscore = self.acc_soloscore
-        sp_edge.accentscore = self.acc_accentscore
-        sp_edge.ghostscore = self.acc_ghostscore
-        
-        base_edge.multsqueezes = copy.copy(self.acc_multsqueezes)
-        sp_edge.multsqueezes = copy.copy(self.acc_multsqueezes)
-        
-        self.acc_multsqueezes = []
-        
-        sp_edge.sp_times = self.acc_sp_phrases
-        
-        self.acc_notecount = 0
-        self.acc_basescore = 0
-        self.acc_comboscore = 0
-        self.acc_spscore = 0
-        self.acc_soloscore = 0
-        self.acc_accentscore = 0
-        self.acc_ghostscore = 0
-        
-        self.acc_sp_phrases = []
+        self._proto_base_edge.dest = ScoreGraphNode(timecode, False)
+        self._proto_sp_edge.dest = ScoreGraphNode(timecode, True)
+        self._proto_base_edge.dest.chord = chord
+        self._proto_sp_edge.dest.chord = chord
             
-        self.base_track_head.adv_edge = base_edge
-        self.sp_track_head.adv_edge = sp_edge
+        self.base_track_head.adv_edge = self._proto_base_edge
+        self.sp_track_head.adv_edge = self._proto_sp_edge
         
-        self.base_track_head = base_edge.dest
-        self.sp_track_head = sp_edge.dest
+        self._proto_base_edge = ScoreGraphEdge()
+        self._proto_sp_edge = ScoreGraphEdge()
+        
+        self.base_track_head = self.base_track_head.adv_edge.dest
+        self.sp_track_head = self.sp_track_head.adv_edge.dest
     
     def add_act_edge(self, frontend_chord, frontend_points, fill_length_ticks, song):
         act_edge = ScoreGraphEdge()
@@ -252,7 +250,7 @@ class ScoreGraph:
         act_edge.activation_initial_end_times = {sp: act_edge.dest.timecode.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
         self.base_track_head.branch_edge = act_edge
     
-    def add_deact_edge(self, prior_backends, song):
+    def add_deact_edge(self):
         deact_edge = ScoreGraphEdge()
         deact_edge.dest = self.base_track_head
         
@@ -267,19 +265,19 @@ class ScoreGraph:
         deact_edge.sqinout_indicator_time = deact_edge.dest.timecode
         
         # notes just prior to this deactivation, which are normally in sp but could be squeezed out
-        for be in prior_backends:
-            deact_edge.backends.append(copy.copy(be))
-            deact_edge.backends[-1][0].offset_ms = be[0].timecode.ms - deact_edge.dest.timecode.ms
+        for recent_backend in self._recent_backends:
+            deact_edge.backends.append(copy.copy(recent_backend))
+            offset_ms = recent_backend.timecode.ms - deact_edge.dest.timecode.ms
+            deact_edge.backends[-1].offset_ms = offset_ms
             
-            # Some checks that can be done here instead of every path doing it
-            if be[1]: # backend is also sp
-                offset = be[0].timecode.ms - deact_edge.dest.timecode.ms
-                deact_edge.sqinout_time = be[0].timecode
-                deact_edge.sqinout_timing = min(deact_edge.sqinout_timing, offset) if deact_edge.sqinout_timing != None else offset
+            if recent_backend.is_sp:
+                if not deact_edge.sqinout_amount:
+                    deact_edge.sqinout_time = recent_backend.timecode
+                    deact_edge.sqinout_timing = offset_ms
+                deact_edge.sqinout_indicator_time = deact_edge.sqinout_indicator_time.plusmeasure(2, self.song)
                 deact_edge.sqinout_amount += 1
-                deact_edge.sqinout_indicator_time = deact_edge.sqinout_indicator_time.plusmeasure(2, song)
         
-        self.live_backend_edges.append(deact_edge)
+        self._recent_deact_edges.append(deact_edge)
         self.sp_track_head.branch_edge = deact_edge
 
 
@@ -328,14 +326,15 @@ class ScoreGraphEdge:
     def __init__(self):
         self.dest = None
         
-        self.basescore = None
-        self.comboscore = None
-        self.spscore = None
-        self.soloscore = None
-        self.accentscore = None
-        self.ghostscore = None
+        self.notecount = 0
         
-        self.notecount = None
+        self.basescore = 0
+        self.comboscore = 0
+        self.spscore = 0
+        self.soloscore = 0
+        self.accentscore = 0
+        self.ghostscore = 0
+        
         self.sp_times = []
         
         self.frontend = None
@@ -689,7 +688,7 @@ class GraphPath:
             #print("\tDeactivating!")
             new_path.sp_end_time = None
             
-            new_path.data.activations[-1].backends = [be[0] for be in br_edge.backends]
+            new_path.data.activations[-1].backends = br_edge.backends
             
             if sq_out:
                 new_path.data.activations[-1].sqinouts.append('-')
@@ -698,7 +697,7 @@ class GraphPath:
                 # Adjust sq-out scoring (basically an altered backend calculation)
                 # When a backend is after the sq-out chord but before current, it's been already counted, so it needs to be subtracted.
                 # When a backend IS the sq-out chord and being subtracted, only subtract the least valuable note.
-                for be,be_sp in br_edge.backends:
+                for be in br_edge.backends:
                     if be.timecode >= br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
                         new_path.data.score_sp -= be.points
                     
@@ -709,7 +708,7 @@ class GraphPath:
                 # Typical deactivation
                 
                 # If a backend is only a few ms away, just add it in for free without calling it a double squeeze
-                for be,be_sp in br_edge.backends:
+                for be in br_edge.backends:
                     if be.offset_ms > 0 and be.offset_ms < 3:
                         new_path.data.score_sp += be.points
 
@@ -734,11 +733,11 @@ class GraphPath:
 
      
 
-def sourcescores(chord, combo):
+def category_scores(chord, combo):
     """Calculates the score for hitting this chord with the current combo.
     
     Builds a complete score breakdown for base score, SP, combo, cymbals, and
-    dynamics.
+    dynamics, then returns the combinations that Clone Hero uses.
     
     Some mechanics can result in a lower score for the chord.
     For sanity reasons these lower scores don't have their own complete
@@ -752,7 +751,9 @@ def sourcescores(chord, combo):
     
     """
     # Full optimal score is the sum of these values.
-    # Every possible cross-multiplication of the score multipliers.
+    # Every possible cross-multiplication of the score multipliers.*
+    # *Technically every dynamic category could be split into accent/ghost,
+    # but let's not get too crazy
     points_by_source = {
         'base_note': 0,             'base_cymbal': 0,
         'combo_note': 0,            'combo_cymbal': 0,
@@ -810,5 +811,13 @@ def sourcescores(chord, combo):
         if i == 0:
             sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
                 
-    return (points_by_source, sqout_reduction, msq_points)
+    return {
+        'base': points_by_source['base_note'] + points_by_source['base_cymbal'] + points_by_source['dynamic_cymbal'],    
+        'combo': points_by_source['combo_note'] + points_by_source['combo_cymbal'] + points_by_source['combodynamic_note'] + points_by_source['combodynamic_cymbal'],
+        'sp': points_by_source['sp_note'] + points_by_source['sp_cymbal'] + points_by_source['combosp_note'] + points_by_source['combosp_cymbal'] + points_by_source['spdynamic_note'] + points_by_source['spdynamic_cymbal'] + points_by_source['combospdynamic_note'] + points_by_source['combospdynamic_cymbal'],
+        'accent': points_by_source['dynamic_note_accent'],
+        'ghost': points_by_source['dynamic_note_ghost'],
+        'sqout_reduction': sqout_reduction, 
+        'msq_points': msq_points,
+    }
     

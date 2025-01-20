@@ -74,6 +74,7 @@ def json_save(obj):
             'chord': obj.chord,
             'points': obj.points,
             'sqout_points': obj.sqout_points,
+            'is_sp': obj.is_sp,
             'offset_ms': obj.offset_ms,
     }
     
@@ -134,111 +135,115 @@ def json_load(_dict):
     except KeyError:
         return _dict
     
-    if obj_code == 'record':
-        o = HydraRecord()
-        o.hyversion = _dict['hyversion']
-        o.paths = _dict['paths']
+    try:
+        if obj_code == 'record':
+            o = HydraRecord()
+            o.hyversion = _dict['hyversion']
+            o.paths = _dict['paths']
+            
+            return o
         
-        return o
-    
-    if obj_code == 'path':
-        o = Path()
-        o.multsqueezes = _dict['multsqueezes']
-        o.activations = _dict['activations']
+        if obj_code == 'path':
+            o = Path()
+            o.multsqueezes = _dict['multsqueezes']
+            o.activations = _dict['activations']
+            
+            o.score_base = _dict['score_base']
+            o.score_combo = _dict['score_combo']
+            o.score_sp = _dict['score_sp']
+            o.score_solo = _dict['score_solo']
+            o.score_accents = _dict['score_accents']
+            o.score_ghosts = _dict['score_ghosts']
+            
+            return o
         
-        o.score_base = _dict['score_base']
-        o.score_combo = _dict['score_combo']
-        o.score_sp = _dict['score_sp']
-        o.score_solo = _dict['score_solo']
-        o.score_accents = _dict['score_accents']
-        o.score_ghosts = _dict['score_ghosts']
+        if obj_code == 'msq':
+            o = MultSqueeze()
+            o.multiplier = _dict['multiplier']
+            o.chord = _dict['chord']
+            o.squeezecount = _dict['squeezecount']
+            o.points = _dict['points']
+            
+            return o
         
-        return o
-    
-    if obj_code == 'msq':
-        o = MultSqueeze()
-        o.multiplier = _dict['multiplier']
-        o.chord = _dict['chord']
-        o.squeezecount = _dict['squeezecount']
-        o.points = _dict['points']
+        if obj_code == 'activation':
+            o = Activation()
+            o.skips = _dict['skips']
+            o.timecode = _dict['timecode']
+            o.chord = _dict['chord']
+            o.sp_meter = _dict['sp_meter']
+            
+            o.frontend = _dict['frontend']
+            o.backends = _dict['backends']
+            
+            o.sqinouts = _dict['sqinouts']
+            
+            o.e_offset = _dict['e_offset']
         
-        return o
-    
-    if obj_code == 'activation':
-        o = Activation()
-        o.skips = _dict['skips']
-        o.timecode = _dict['timecode']
-        o.chord = _dict['chord']
-        o.sp_meter = _dict['sp_meter']
+            return o
         
-        o.frontend = _dict['frontend']
-        o.backends = _dict['backends']
-        
-        o.sqinouts = _dict['sqinouts']
-        
-        o.e_offset = _dict['e_offset']
-    
-        return o
-    
-    if obj_code == 'fsq':
-        o = FrontendSqueeze(_dict['chord'], _dict['points'])
+        if obj_code == 'fsq':
+            o = FrontendSqueeze(_dict['chord'], _dict['points'])
 
-        return o
-    
-    if obj_code == 'bsq':
-        o = BackendSqueeze(
-            _dict['timecode'],
-            _dict['chord'],
-            _dict['points'],
-            _dict['sqout_points'],
-        )
-        o.offset_ms = _dict['offset_ms']
+            return o
         
-        return o
-    
-    if obj_code == 'chord':
-        o = Chord()
-        o.notemap = {
-            NoteColor.KICK: _dict['kick'],
-            NoteColor.RED: _dict['red'],
-            NoteColor.YELLOW: _dict['yellow'],
-            NoteColor.BLUE: _dict['blue'],
-            NoteColor.GREEN: _dict['green'],
-        }
+        if obj_code == 'bsq':
+            o = BackendSqueeze(
+                _dict['timecode'],
+                _dict['chord'],
+                _dict['points'],
+                _dict['sqout_points'],
+                _dict['is_sp'],
+            )
+            o.offset_ms = _dict['offset_ms']
+            
+            return o
         
-        for c, note in o.notemap.items():
-            if note:
-                note.colortype = c
+        if obj_code == 'chord':
+            o = Chord()
+            o.notemap = {
+                NoteColor.KICK: _dict['kick'],
+                NoteColor.RED: _dict['red'],
+                NoteColor.YELLOW: _dict['yellow'],
+                NoteColor.BLUE: _dict['blue'],
+                NoteColor.GREEN: _dict['green'],
+            }
+            
+            for c, note in o.notemap.items():
+                if note:
+                    note.colortype = c
+            
+            return o
         
-        return o
-    
-    if obj_code == 'note':
-        o = ChordNote()
+        if obj_code == 'note':
+            o = ChordNote()
+            
+            o.cymbaltype = {
+                'normal': NoteCymbalType.NORMAL,
+                'cymbal': NoteCymbalType.CYMBAL,
+            }[_dict['cymbal']]
+            
+            o.dynamictype = {
+                'normal': NoteDynamicType.NORMAL,
+                'ghost': NoteDynamicType.GHOST,
+                'accent': NoteDynamicType.ACCENT,
+            }[_dict['dynamic']]
+            
+            o.is2x = _dict['is_2x']
+            
+            return o
         
-        o.cymbaltype = {
-            'normal': NoteCymbalType.NORMAL,
-            'cymbal': NoteCymbalType.CYMBAL,
-        }[_dict['cymbal']]
+        if obj_code == 'timecode':
+            o = hymisc.Timecode(_dict['tick'], None)
+            o.measure_beats_ticks = _dict['mbt']
+            o.measures_decimal = _dict['m_decimal']
+            o.ms = _dict['ms']
+            
+            return o
+    except KeyError:
+        return "<Invalid object>"
         
-        o.dynamictype = {
-            'normal': NoteDynamicType.NORMAL,
-            'ghost': NoteDynamicType.GHOST,
-            'accent': NoteDynamicType.ACCENT,
-        }[_dict['dynamic']]
-        
-        o.is2x = _dict['is_2x']
-        
-        return o
-    
-    if obj_code == 'timecode':
-        o = hymisc.Timecode(_dict['tick'], None)
-        o.measure_beats_ticks = _dict['mbt']
-        o.measures_decimal = _dict['m_decimal']
-        o.ms = _dict['ms']
-        
-        return o
-    
-    raise TypeError(f"Tried to load unhandled JSON object: {_dict}")
+    return "<Unrecognized object>"
 
 
 class HydraRecord:
@@ -337,13 +342,15 @@ class FrontendSqueeze:
 
 
 class BackendSqueeze:
-    def __init__(self, timecode, chord, points, sqout_points):
+    def __init__(self, timecode, chord, points, sqout_points, is_sp):
         self.timecode = timecode
         self.chord = chord
         self.points = points
         self.sqout_points = sqout_points
-        self.offset_ms = None
+        self.is_sp = is_sp
 
+        self.offset_ms = None
+        
     def ratingstr(self):
         """Hydra ratings for how hard the squeeze's timing is."""
         thresholds = [
