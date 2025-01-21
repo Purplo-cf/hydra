@@ -52,3 +52,9 @@ class TestScoring(unittest.TestCase):
         
     def test_think_dirty_out_loud(self):
         self._test_scoring("tdol.mid", 'a80f00cffa9dfd684373aaba03e0f467')
+
+    def test_book(self):
+        self._test_scoring("book.mid", 'eb9a1e7e9b064e8fe4d04d3e99803e46')
+        
+    def test_all_these_people(self):
+        self._test_scoring("atp.mid", '72cc3037f114c4090550349048c650a3')
