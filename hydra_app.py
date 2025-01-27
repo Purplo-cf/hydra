@@ -4,7 +4,6 @@ import configparser
 import sqlite3
 import time
 import json
-import hashlib
 
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
@@ -36,48 +35,9 @@ def scan_library():
     cur.execute(f"CREATE TABLE charts({chartrow})")
     
     # Copy info from each ini to the db
-    for i, (chartfile, inifile, path) in enumerate(chartfiles):        
-        config = configparser.ConfigParser(strict=False, allow_no_value=True)
-        # utf-8 should work but try to do other encodings if it doesn't
-        for codec in ['utf-8', 'utf-8-sig', 'ansi']:
-            try:
-                config.read(inifile, encoding=codec)
-                break
-            except (configparser.MissingSectionHeaderError, UnicodeDecodeError):
-                continue
-       
-        # Song inis have one section
-        if 'Song' in config:
-            metadata = config['Song']
-        elif 'song' in config:
-            metadata = config['song']
-        else:
-            raise hymisc.ChartFileError("Invalid ini format.")
-        
-        # Hash the chart file
-        with open(chartfile, 'rb') as f:
-            hyhash = hashlib.file_digest(f, "md5").hexdigest()
-        
-        # Grab our desired metadata
-        try:
-            name = metadata['name']
-        except KeyError:
-            name = "<unknown name>"
-            
-        try:
-            artist = metadata['artist']
-        except KeyError:
-            artist = "<unknown artist>"
-            
-        try:
-            charter = metadata['charter']
-        except KeyError:
-            charter = "<unknown charter>"
-
-        folder = os.path.relpath(pathlib.Path(path).parent, appstate.usettings.chartfolder)
-
+    for i, (chartfile, inifile, dirname) in enumerate(chartfiles):        
         # Insert into db
-        rowvalues = (hyhash, name, artist, charter, path, folder)
+        rowvalues = hyutil.get_rowvalues(chartfile, inifile, dirname, appstate.usettings.chartfolder)
         cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
         on_scan_db_progress(i+1, len(chartfiles))
     

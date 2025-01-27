@@ -5,41 +5,48 @@ import configparser
 
 import hydra.hypath as hypath
 import hydra.hyutil as hyutil
+import hydra.hydata as hydata
 
 if __name__ == "__main__":
     
-    os.makedirs(os.sep.join(['..','output']), exist_ok=True)
-    outfile = os.sep.join(['..','output','hydra_output.json'])
+    outfile_name = "runfolder_output.json"
     
+    os.makedirs(os.sep.join(['..','output']), exist_ok=True)
+    outfile = os.sep.join(['..','output', outfile_name])
+    
+    book = {}
+    
+    charts_root = sys.argv[1]
+    charts = hyutil.discover_charts(charts_root)
+    
+    print(f"\nFound {len(charts)} charts in '{charts_root}'.\n")
+    
+    records_count = 0
+    for chartfile, inifile, dirname in charts:
+        print(f"{chartfile}")
+        
+        hyhash, name, artist, charter, path, folder = hyutil.get_rowvalues(
+            chartfile, inifile, dirname, charts_root
+        )
+        
+        if hyhash not in book:
+            book[hyhash] = {
+                'ref_name': name,
+                'ref_artist': artist,
+                'ref_charter': charter,
+                
+                'records': {},
+            }
+        
+        record = hyutil.analyze_chart(
+            chartfile, 
+            'Expert', True, True,
+            'scores', 0,
+        )
+        book[hyhash]['records']['Expert Pro Drums, 2x Bass'] = record
+        records_count += 1
+        
     with open(outfile, mode='w', encoding='utf-8') as output_json:
+        json.dump(book, output_json, default=hydata.json_save, indent=4)
         
-        json_album = {'records': []}
-        
-        charts_root = sys.argv[1]
-        charts = hyutil.discover_charts(charts_root)
-        
-        print(f"\nFound {len(charts)} charts in '{charts_root}'.\n")
-        
-        for notesfile, inifile in charts:
-            print(f"{notesfile}")
-            
-            json_album['records'].append(hyutil.run_chart(notesfile))
-            
-            config = configparser.ConfigParser()
-            config.read(inifile)
-            
-            if 'Song' in config:
-                name = config['Song']['name']
-                artist = config['Song']['artist']
-            elif 'song' in config:
-                name = config['song']['name']
-                artist = config['song']['artist']
-            else:
-                raise hymisc.ChartFileError()
-            
-            json_album['records'][-1].ref_songname = name
-            json_album['records'][-1].ref_artistname = artist
-                        
-        json.dump(json_album, output_json, default=lambda r: r.__dict__, indent=4)
-        
-        print(f"\nFinished saving {len(json_album['records'])} records to hydra_output.json")
+    print(f"\nFinished saving {records_count} records to {outfile_name}")

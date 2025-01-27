@@ -3,6 +3,7 @@ import json
 import sqlite3
 import configparser
 import pathlib
+import hashlib
 import time
 
 from . import hypath
@@ -57,6 +58,47 @@ def discover_charts(rootname, cb_progress=None):
             
     return [tuple(info) for info in found_by_dirname.values() if all(info)]
 
+
+def get_rowvalues(chartfile, inifile, path, rootfolder):
+    config = configparser.ConfigParser(strict=False, allow_no_value=True)
+    # utf-8 should work but try to do other encodings if it doesn't
+    for codec in ['utf-8', 'utf-8-sig', 'ansi']:
+        try:
+            config.read(inifile, encoding=codec)
+            break
+        except (configparser.MissingSectionHeaderError, UnicodeDecodeError):
+            continue
+   
+    # Song inis have one section
+    if 'Song' in config:
+        metadata = config['Song']
+    elif 'song' in config:
+        metadata = config['song']
+    else:
+        raise hymisc.ChartFileError("Invalid ini format.")
+    
+    # Hash the chart file
+    with open(chartfile, 'rb') as f:
+        hyhash = hashlib.file_digest(f, "md5").hexdigest()
+    
+    # Grab our desired metadata
+    try:
+        name = metadata['name']
+    except KeyError:
+        name = "<unknown name>"
+        
+    try:
+        artist = metadata['artist']
+    except KeyError:
+        artist = "<unknown artist>"
+        
+    try:
+        charter = metadata['charter']
+    except KeyError:
+        charter = "<unknown charter>"
+
+    folder = os.path.relpath(pathlib.Path(path).parent, rootfolder)
+    return (hyhash, name, artist, charter, path, folder)
 
 def analyze_chart(
     filepath,
