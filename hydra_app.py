@@ -877,10 +877,12 @@ def build_main_ui():
             dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (100, 0, 0))
             dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (0, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (0, 150, 150))
             dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (0, 100, 100))
             dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
+            dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, (0, 200, 200))
     
     with dpg.theme(tag="bestpath_theme"):
         with dpg.theme_component(dpg.mvAll):
