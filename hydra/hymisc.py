@@ -1,6 +1,6 @@
 from functools import total_ordering
 import pathlib
-
+import sys
 
 """Semantic version number for Hydra.
     
@@ -17,7 +17,10 @@ HYDRA_VERSION = (1,0,0)
 
 """Static paths and files"""
 
-ROOTPATH = pathlib.Path(__file__).resolve().parent.parent
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    ROOTPATH = pathlib.Path(sys._MEIPASS).resolve()
+else:
+    ROOTPATH = pathlib.Path(__file__).resolve().parent.parent
 INIPATH = ROOTPATH / "hyapp.ini"
 DBPATH = ROOTPATH / "hyapp.db"
 FONTPATH_ANTQ = ROOTPATH / "resource" / "ShipporiAntiqueB1-Regular.ttf"
