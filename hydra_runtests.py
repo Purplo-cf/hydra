@@ -1,6 +1,10 @@
+import sys
 import unittest
-
+import cProfile
 
 if __name__ == '__main__':
     suite = unittest.TestLoader().discover('../test')
-    unittest.TextTestRunner(verbosity=1).run(suite)
+    if 'perf' in sys.argv:
+        cProfile.run("unittest.TextTestRunner(verbosity=1).run(suite)", sort='cumtime')
+    else:
+        unittest.TextTestRunner(verbosity=1).run(suite)
