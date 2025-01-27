@@ -625,6 +625,7 @@ class GraphPath:
                     
         new_path = GraphPath(parent_path=self)
         new_path.currentnode = br_edge.dest
+        new_path.currentskips = 0
         
         # Activated paths immediately "spend" the sp and just know what time the sp ends.
         new_path.sp = 0
