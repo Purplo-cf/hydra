@@ -862,9 +862,10 @@ def build_main_ui():
     # Theme
     with dpg.theme() as standard_theme:
         with dpg.theme_component(dpg.mvButton, enabled_state=True):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 100, 100))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 120, 120))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 150, 150))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
+
             
         with dpg.theme_component(dpg.mvButton, enabled_state=False):
             dpg.add_theme_color(dpg.mvThemeCol_Text, (200, 200, 200))
@@ -872,10 +873,19 @@ def build_main_ui():
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (100, 100, 100))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
             
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (100, 0, 0))
+            dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (0, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (0, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
+    
     with dpg.theme(tag="bestpath_theme"):
         with dpg.theme_component(dpg.mvAll):
             dpg.add_theme_color(dpg.mvThemeCol_Text, (250,210,0))
-            
+    
     with dpg.theme(tag="newsong_theme"):
         with dpg.theme_component(dpg.mvAll):
             dpg.add_theme_color(dpg.mvThemeCol_Text, (100,100,100))
@@ -893,7 +903,8 @@ if __name__ == '__main__':
     
     # Begin UI
     icopath = str(hymisc.ICOPATH_APP)
-    dpg.create_viewport(title="Hydra v0.0.1", width=1280, height=720, small_icon=icopath, large_icon=icopath)
+    verstr = f"Hydra v{'.'.join([str(n) for n in hymisc.HYDRA_VERSION])}"
+    dpg.create_viewport(title=verstr, width=1280, height=720, small_icon=icopath, large_icon=icopath)
 
     #demo.show_demo()
     #dpg.show_font_manager()
