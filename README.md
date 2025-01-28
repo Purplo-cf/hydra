@@ -28,8 +28,8 @@ Since drum SP is activated at set activation points, and controlling where you a
 Examples:
 | Path | Meaning |
 | --- | --- |
-| `1 2 0` | Skip 1, then activate. Skip 2, then activate. Skip 0 (activate right away without skipping). |
-| `0 0 0 0` | Activate without skipping for the whole song. (For clarity reasons, Hydra doesn't leave out trailing 0s.) |
+| `1 2 0` | Skip 1, then activate.<br>Skip 2, then activate.<br>Skip 0 (activate right away without skipping). |
+| `0 0 0 0` | Activate without skipping for the whole song.<br>(For clarity reasons, Hydra doesn't leave out trailing 0s.) |
 
 ### Squeeze In / Squeeze Out (+/-)
 
@@ -42,8 +42,8 @@ If another SP phrase comes along while you're in active Star Power, and you hit 
 Examples:
 | Path | Meaning |
 | --- | --- |
-| `1 2+` | Skip 1, then activate. Skip 2, then activate, and when the activation is about to run out make sure to chain the SP phrase. |
-| `1- 1` | Skip 1, then activate, and when the activation is about to run out make sure to not chain the SP phrase. Skip 1, then activate. |
+| `1 2+` | Skip 1, then activate.<br>Skip 2, then activate, and when the activation is about to run out make sure to chain the SP phrase. |
+| `1- 1` | Skip 1, then activate, and when the activation is about to run out make sure to not chain the SP phrase.<br>Skip 1, then activate. |
 
 ### Calibration Fills (E)
 
