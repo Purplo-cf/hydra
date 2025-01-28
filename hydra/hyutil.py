@@ -119,7 +119,7 @@ def analyze_chart(
     elif filepath.endswith(".chart"):
         parser = hysong.ChartParser()
     else:
-        raise hymisc.ChartFileError("Unexpected chart filetype")
+        raise hymisc.ChartFileError(f"Unexpected chart filetype: {filepath}")
     
     parser.parsefile(filepath, m_difficulty, m_pro, m_bass2x)
     
