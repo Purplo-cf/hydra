@@ -62,5 +62,5 @@ Lastly, this timing is _also_ offset by your calibration. If your calibration is
 Examples:
 | Path | Meaning |
 | --- | --- |
-| `E2` | When you gain the 2nd bar of SP, if an early fill occurred, treat this as a 2. If the early fill didn't occur, treat this as a 1. |
-| `E0` | The activation is *on* the early fill, so in order to not miss this activation, triggering the early fill (by hitting the SP early) is required. |
+| `E2` | When you gain the 2nd bar of SP, if an early fill occurred, treat this as a 2.<br>If the early fill didn't occur, treat this as a 1. |
+| `E0` | The activation is *on* the early fill, so in order to not miss this activation,<br>triggering the early fill (by hitting the SP early) is required. |
