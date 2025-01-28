@@ -60,7 +60,9 @@ def discover_charts(rootname, cb_progress=None):
 
 
 def get_rowvalues(chartfile, inifile, path, rootfolder):
-    config = configparser.ConfigParser(strict=False, allow_no_value=True)
+    config = configparser.ConfigParser(
+        strict=False, allow_no_value=True, interpolation=None
+    )
     # utf-8 should work but try to do other encodings if it doesn't
     for codec in ['utf-8', 'utf-8-sig', 'ansi']:
         try:
