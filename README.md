@@ -1,7 +1,7 @@
 # Hydra
- Score optimizer / path viewer for Clone Hero drums!
+Score optimizer / path viewer for Clone Hero drums!
  
- Featuring a song browsing UI to make information convenient to access even for large song libraries.
+Featuring a song browsing UI to make information convenient to access even for large song libraries.
 
 ## Quick start guide
 
@@ -14,6 +14,8 @@
 7. Once it's done, paths should appear on the left side. The first path is optimal. There may be other paths tied for optimal, listed under the same score. Below that there  may be some additional paths on slightly lower scores, which could come in handy if the optimal path is unusually difficult.
 8. Click a path on the left side to show its details on the right side.
 9. You can return to browsing songs by X-ing out of the Song Details window.
+
+<p align="center"><img src="/resource/icon_app.png" width="200"></p>
 
 ## Path notation guide
 
