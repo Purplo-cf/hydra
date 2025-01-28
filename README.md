@@ -53,7 +53,9 @@ When you gain your second bar of SP, the game makes sure that even though you ca
 
 If you trigger the early fill, either by chance or purposefully by hitting the SP-granting note with early timing, then the skip count is the one that's listed.
 
-If you don't trigger the early fill, either by chance or purposefully by hitting the SP-granting note with late timing, then skip count will be 1 less than what's listed. Note that in Clone Hero, drum activations don't cause you to miss out on any points, so it's OK to trigger E fills just to skip them.
+If you don't trigger the early fill, either by chance or purposefully by hitting the SP-granting note with late timing, then skip count will be 1 less than what's listed.
+
+Note that in Clone Hero, skipped drum activations don't cause you to miss out on any points, so it's OK to trigger E fills just to skip them, as long as you're still following the path.
 
 Another way to think about it is that if the skip has an E on it, then you know the first skip is right after gaining SP and you can count it even if it doesn't appear. Either way, this notation should cue you in to adjust your skip counting whichever way makes sense.
 
