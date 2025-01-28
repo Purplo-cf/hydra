@@ -3,7 +3,7 @@ Score optimizer / path viewer for Clone Hero drums!
  
 Featuring a song browsing UI to make information convenient to access even for large song libraries.
 
-## Quick start guide
+## Quick-start guide
 
 1. Download the [latest release](https://github.com/DragonDelgar/hydra/releases).
 2. Extract the Hydra folder to any location and run Hydra.exe.
