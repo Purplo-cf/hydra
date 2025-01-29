@@ -12,7 +12,7 @@ Records with an old major version will be wiped without trying to read them.
 Records with an old minor version will be marked stale, but will work normally.
 
 """
-HYDRA_VERSION = (0,1,1)
+HYDRA_VERSION = (0,1,2)
 
 
 """Static paths and files"""
