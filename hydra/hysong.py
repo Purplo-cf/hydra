@@ -114,6 +114,7 @@ class MidiParser:
         self._flag_cymbals = None
         self._flag_disco = None
         self._fill_start_tick = None
+        self._dynamics_enabled = None
 
     def optype(self, msg, tick):
         """Parses individual midi messages into the actual actions the parser
@@ -139,9 +140,13 @@ class MidiParser:
         # Text events that are used for disco flip
         r_disco_on_x = r'\[mix.3.drums\d?d\]'
         r_disco_off_x = r'\[mix.3.drums\d?\]'
+        
+        r_dynamics = r'\[?ENABLE_CHART_DYNAMICS\]?'
             
         # Interpret midi message for which procedure to return
         match msg:
+            case mido.MetaMessage(text=t) if re.fullmatch(r_dynamics, t):
+                return ('pre', self.op_enable_dynamics)
             case mido.MetaMessage(text=t) if re.fullmatch(r_disco_on_x, t):
                 return ('pre', self.op_disco, True)
             case mido.MetaMessage(text=t) if re.fullmatch(r_disco_off_x, t):
@@ -205,6 +210,9 @@ class MidiParser:
 
     """Op functions: Each midi event results in one of these."""
     
+    def op_enable_dynamics(self):
+        self._dynamics_enabled = True
+        
     def op_disco(self, is_on):
         self._flag_disco = is_on
     
@@ -231,7 +239,10 @@ class MidiParser:
     
     def op_note(self, color, dynamic, is2x):
         note = self._chord.add_note(color)
-        note.dynamictype = dynamic
+        if self._dynamics_enabled:
+            note.dynamictype = dynamic
+        else:
+            note.dynamictype = hydata.NoteDynamicType.NORMAL
         if color.allows_cymbals() and self.mode_pro:
             note.cymbaltype = self._flag_cymbals[color]
         note.is2x = is2x
@@ -311,6 +322,7 @@ class MidiParser:
                     hydata.NoteColor.BLUE: hydata.NoteCymbalType.CYMBAL,
                     hydata.NoteColor.YELLOW: hydata.NoteCymbalType.CYMBAL
                 }
+                self._dynamics_enabled = False
                 for msg in track:
                     if msg.time != 0:
                         # Process timestamp first
