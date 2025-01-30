@@ -77,7 +77,8 @@ def get_rowvalues(chartfile, inifile, path, rootfolder):
     elif 'song' in config:
         metadata = config['song']
     else:
-        raise hymisc.ChartFileError(f"Invalid ini format: {inifile}")
+        errorpath = os.path.relpath(inifile, rootfolder)
+        raise hymisc.ChartFileError(f"Invalid ini format: {errorpath}")
     
     # Hash the chart file
     with open(chartfile, 'rb') as f:

@@ -34,17 +34,21 @@ def scan_library():
     cur.execute("DROP TABLE IF EXISTS charts")
     cur.execute(f"CREATE TABLE charts({chartrow})")
     
+    errors = []
     # Copy info from each ini to the db
-    for i, (chartfile, inifile, dirname) in enumerate(chartfiles):        
-        # Insert into db
-        rowvalues = hyutil.get_rowvalues(chartfile, inifile, dirname, appstate.usettings.chartfolder)
-        cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
+    for i, (chartfile, inifile, dirname) in enumerate(chartfiles):
+        try:
+            # Insert into db
+            rowvalues = hyutil.get_rowvalues(chartfile, inifile, dirname, appstate.usettings.chartfolder)
+            cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
+        except Exception as e:
+            errors.append(str(e))
         on_scan_db_progress(i+1, len(chartfiles))
-    
+        
     cxn.commit()
     cxn.close()
     
-    return len(chartfiles)
+    return len(chartfiles), errors
     
 
 """Settings"""
@@ -218,6 +222,9 @@ class HyAppState:
         self.current_path_selectable = None
         self.selected_song_row = None
     
+        self.scanmodal_height_short = 190
+        self.scanmodal_height_long = 320
+    
     def pagecount(self):
         return self.librarysize // self.TABLE_ROWCOUNT
             
@@ -236,20 +243,26 @@ class HyAppState:
 
 def on_viewport_resize():
     # Loading modal sizes: Heavily inset window
-    width = dpg.get_viewport_width() - 22 - 800
-    height = 158
-    dpg.configure_item("scanprogress", pos=(400, 200),
-                        width=width, height=height)
-    height = 125
-    dpg.configure_item("songdetails_progresspanel", pos=(400, 200),
-                        width=width, height=height)
+    dpg.configure_item(
+        "songdetails_progresspanel", pos=(400, 200),
+        width=dpg.get_viewport_width() - 22 - 800,
+        height=125
+    )
     
     # Song details sizes: Slightly inset window
-    width = dpg.get_viewport_width() - 22 - 80
-    height = dpg.get_viewport_height() - 22 - 80
-    dpg.configure_item("songdetails", pos=(40, 40),
-                        width=width, height=height)
+    dpg.configure_item(
+        "songdetails", pos=(40, 40),
+        width=dpg.get_viewport_width() - 22 - 80,
+        height=dpg.get_viewport_height() - 22 - 80
+    )
 
+def set_scanmodal_height(long=False):
+    h = appstate.scanmodal_height_long if long else appstate.scanmodal_height_short
+    dpg.configure_item(
+        "scanprogress", pos=(400, 200),
+        width=dpg.get_viewport_width() - 22 - 800,
+        height=h
+    )
                         
 def on_select_chartfolder():
     dpg.show_item("select_chartfolder")
@@ -280,14 +293,23 @@ def on_depth_mode(sender, app_data):
     appstate.usettings.depth_mode = app_data
     
 def on_scan():
-    on_viewport_resize()
     reset_scan_modal()
-    
     dpg.show_item("scanprogress")
-    count = scan_library()
+    set_scanmodal_height(long=False)
+    count, errors = scan_library()
+    set_scanmodal_height(long=len(errors) > 0)
     dpg.configure_item("scanprogress_bar", overlay=f"{count}/{count}")
     dpg.show_item("scanprogress_done")
-    time.sleep(1.5)
+    if errors:
+        dpg.show_item("scanprogress_failedsongslabel")
+        dpg.show_item("scanprogress_failedcontainer")
+    dpg.show_item("scanprogress_dismiss")
+    
+    dpg.delete_item("scanprogress_failedcontainer", children_only=True)
+    for errormsg in errors:
+        dpg.add_text(errormsg, parent="scanprogress_failedcontainer")
+    
+def on_scan_dismiss():
     dpg.hide_item("scanprogress")
     
     appstate.usettings.lastscanfolder = appstate.usettings.chartfolder
@@ -504,6 +526,9 @@ def reset_scan_modal():
     dpg.hide_item("scanprogress_bartext")
     dpg.hide_item("scanprogress_bar")
     dpg.hide_item("scanprogress_done")
+    dpg.hide_item("scanprogress_failedsongslabel")
+    dpg.hide_item("scanprogress_failedcontainer")
+    dpg.hide_item("scanprogress_dismiss")
     
 def reset_analyze_modal():
     dpg.hide_item("analyze_opt_label")
@@ -766,7 +791,10 @@ def build_main_ui():
             dpg.add_text("Adding to library...", tag="scanprogress_bartext", show=False)
             dpg.add_progress_bar(tag="scanprogress_bar", show=False, width=-18)
             dpg.add_text("Done!", tag="scanprogress_done", show=False)
-    
+            dpg.add_text("Skipped failed songs:", tag="scanprogress_failedsongslabel", show=False)
+            dpg.add_child_window(tag="scanprogress_failedcontainer", show=False, height=100, width=-18, horizontal_scrollbar=True)
+            dpg.add_spacer(height=0)
+            dpg.add_button(tag="scanprogress_dismiss", label="Continue", callback=on_scan_dismiss, show=False)
     
     with dpg.window(label="Song Details", tag="songdetails", show=False, modal=True, no_title_bar=False, no_close=False, no_resize=True, no_move=True):
         with dpg.group(tag="songdetails_upperpanel", horizontal=True, height=170):
