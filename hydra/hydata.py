@@ -344,7 +344,7 @@ class Activation:
         c.sp_meter = self.sp_meter
         
         c.frontend = self.frontend
-        c.backends = []
+        c.backends = self.backends
         
         c.sqinouts = [s for s in self.sqinouts]
         
