@@ -92,7 +92,7 @@ This details panel will list out these multiplier squeezes if they happen in thi
 A list of activations in this path. The number from the path notation is shown as well as how many bars of SP you'll have at that activation. Measure number is also shown, if you happen to be referencing
 an image or some other view of the chart.
 
-If an activation has a calibration fill (the `E` notation), the timing of that calibration fill will be listed. Usually this will be `0ms`. The more negative the value, the more early you have to hit
+If an activation has a [calibration fill](https://github.com/DragonDelgar/hydra?tab=readme-ov-file#calibration-fills-e) (the `E` notation), the timing of that calibration fill will be listed. Usually this will be `0ms`. The more negative the value, the more early you have to hit
 to make the calibration fill show up.
 
 Frontend: The chord that the activation is on. If it's a multi-note chord, perform a frontend squeeze by hitting the activation note first, so that the other notes are scored with the Star Power multiplier.
