@@ -318,6 +318,7 @@ def on_scan_dismiss():
     
     refresh_librarytitle()
     refresh_chartfolder()
+    appstate.table_viewpage = 0
     refresh_tableview()
 
 def on_search_text(sender, app_data):
