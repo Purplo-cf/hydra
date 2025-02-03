@@ -15,6 +15,8 @@ Featuring a song browsing UI to make information convenient to access even for l
 8. Click a path on the left side to show its details on the right side.
 9. You can return to browsing songs by X-ing out of the Song Details window.
 
+[There is also a more detailed user guide.](https://github.com/DragonDelgar/hydra/blob/main/docs/UserGuide.md)
+
 <p align="center"><img src="/resource/icon_app.png" width="200"></p>
 
 ## Path notation guide
