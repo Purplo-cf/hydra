@@ -292,6 +292,26 @@ class Path:
         else:
             return "(No activations.)"
 
+    def copy(self):
+        c = Path()
+        
+        # New list moving forward, shared previous activations
+        c.activations = [a for a in self.activations]
+        
+        # Except for the latest activation 
+        if c.activations:
+            c.activations[-1] = c.activations[-1].copy()
+        
+        c.multsqueezes = self.multsqueezes
+        
+        c.score_base = self.score_base
+        c.score_combo = self.score_combo
+        c.score_sp = self.score_sp
+        c.score_solo = self.score_solo
+        c.score_accents = self.score_accents
+        c.score_ghosts = self.score_ghosts
+        
+        return c
 
 class Activation:
     
@@ -314,6 +334,23 @@ class Activation:
     
     def is_e_critical(self):
         return self.e_offset < 70 
+        
+    def copy(self):
+        c = Activation()
+        
+        c.skips = self.skips
+        c.timecode = self.timecode
+        c.chord = self.chord
+        c.sp_meter = self.sp_meter
+        
+        c.frontend = self.frontend
+        c.backends = []
+        
+        c.sqinouts = [s for s in self.sqinouts]
+        
+        c.e_offset = self.e_offset
+        
+        return c
 
 
 class MultSqueeze:

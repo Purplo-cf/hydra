@@ -3,6 +3,7 @@ import copy
 import math
 import json
 from enum import Enum
+from itertools import combinations
 
 from . import hydata
 from . import hymisc
@@ -435,67 +436,76 @@ class GraphPather:
         # Both Inactive SP: Score and SP value comparisons must not contradict.
         # Different SP Active: Not comparable
 
-        paths_to_better_scores = {p: set() for p in paths}
-        
-        # O(n^2), it is what it is
+        # Separate active SP and inactive SP paths
+        # Reduces amount of obviously ineffective comparisons in a sec
+        pathgroups = {
+            True: [],
+            False: []
+        }
+        for p in paths:
+            pathgroups[p.is_active_sp()].append(p)                
+
+        worsethan_scores = {p: set() for p in paths}
         paths_to_remove = set()
-        for i, p in enumerate(paths):
-            for q in paths[i+1:]:
-                if p.is_active_sp() != q.is_active_sp():
-                    continue
-                    
-                p_sp = 0 if p.is_complete() else (p.sp_end_time if p.is_active_sp() else p.sp)
-                q_sp = 0 if q.is_complete() else (q.sp_end_time if q.is_active_sp() else q.sp)
+        
+        for p, q in combinations(pathgroups[True], 2):
+            # Active SP paths: Compare score only if SP is the same
+            if p.sp_end_time != q.sp_end_time:
+                continue
+               
+            score_diff = q.data.totalscore() - p.data.totalscore()
+            if score_diff < 0:
+                better, worse = (p, q)
+            elif score_diff > 0:
+                better, worse = (q, p)
+            else:
+                continue
                 
-                p_score = p.data.totalscore()
-                q_score = q.data.totalscore()
-                    
-                if p.is_active_sp():
-                    if p_sp != q_sp:
-                        continue
-                    diff = q_score - p_score
-                    if diff < 0:
-                        better, worse = (p, q)
-                    elif diff > 0:
-                        better, worse = (q, p)
-                    else:
-                        continue
-                else:
-                    cmp = 0
-                    sp_diff = q_sp - p_sp
-                    if sp_diff > 0:
-                        cmp += 1
-                    elif sp_diff < 0:
-                        cmp -= 1
-                    score_diff = q_score - p_score
-                    if score_diff > 0:
-                        cmp += 1
-                    elif score_diff < 0:
-                        cmp -= 1
-                    
-                    if cmp < 0:
-                        better, worse = (p, q)
-                    elif cmp > 0:
-                        better, worse = (q, p)
-                    else:
-                        continue
-                    
-                # Worse path also needs to be outside the depth parameter
-                # in order to be removed
-                if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
+            if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
+                paths_to_remove.add(worse)
+                
+            if depth_mode == 'scores':
+                worsethan_scores[worse].add(better.data.totalscore())
+                if len(worsethan_scores[worse]) > depth_value:
                     paths_to_remove.add(worse)
-                    
-                paths_to_better_scores[worse].add(better.data.totalscore())
+            
+        for p, q in combinations(pathgroups[False], 2):
+            # Inactive SP paths: Compare both SP meter and score.
+            # A path must be either better in both or better in one and 
+            # tied in the other
+            cmp = 0
+            
+            p_sp = 0 if p.is_complete() else p.sp
+            q_sp = 0 if q.is_complete() else q.sp
+            
+            sp_diff = q_sp - p_sp
+            if sp_diff > 0:
+                cmp += 1
+            elif sp_diff < 0:
+                cmp -= 1
+                
+            score_diff = q.data.totalscore() - p.data.totalscore()
+            if score_diff > 0:
+                cmp += 1
+            elif score_diff < 0:
+                cmp -= 1
+            
+            if cmp < 0:
+                better, worse = (p, q)
+            elif cmp > 0:
+                better, worse = (q, p)
+            else:
+                continue
+                
+            if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
+                paths_to_remove.add(worse)
+                
+            if depth_mode == 'scores':
+                worsethan_scores[worse].add(better.data.totalscore())
+                if len(worsethan_scores[worse]) > depth_value:
+                    paths_to_remove.add(worse)
         
-        
-        if depth_mode == 'scores':
-            for p, betterscores in paths_to_better_scores.items():
-                if len(betterscores) > depth_value:
-                    paths_to_remove.add(p)
-        
-        paths = list(filter(lambda p: p not in paths_to_remove, paths))
-        
-        return paths
+        return [p for p in paths if p not in paths_to_remove]
         
 class GraphPath:
     """Quick early note:
@@ -507,7 +517,7 @@ class GraphPath:
     """
     def __init__(self, parent_path=None):
         if parent_path:
-            self.data = copy.deepcopy(parent_path.data)
+            self.data = parent_path.data.copy()
             
             self.currentnode = parent_path.currentnode
             self.sp = parent_path.sp
