@@ -265,7 +265,10 @@ class MidiParser:
         for phase in ['pre', 'notes']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
-                    op(*op_args)
+                    try:
+                        op(*op_args)
+                    except hymisc.ChartFileError:
+                        pass
         
         # Append to the Song
         if self._chord.count():
@@ -283,7 +286,10 @@ class MidiParser:
         #   'previous chord' mechanic that includes this chord
         for op_phase, op, *op_args in ops:
                 if op_phase == 'post':
-                    op(*op_args)
+                    try:
+                        op(*op_args)
+                    except hymisc.ChartFileError:
+                        pass
             
         self._msg_buffer = []
     
@@ -613,7 +619,10 @@ class ChartParser:
         for phase in ['pre', 'notes', 'note_mods']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
-                    op(*op_args)
+                    try:
+                        op(*op_args)
+                    except hymisc.ChartFileError:
+                        pass
         
         # Append to the Song
         if self._chord.count():
@@ -631,7 +640,10 @@ class ChartParser:
         #   'previous chord' mechanic that includes this chord
         for op_phase, op, *op_args in ops:
             if op_phase == 'post':
-                op(*op_args)
+                try:
+                    op(*op_args)
+                except hymisc.ChartFileError:
+                    pass
         
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
         """After calling this, self.song will reflect the input filename.

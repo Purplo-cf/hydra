@@ -682,7 +682,8 @@ class Chord:
         self[NoteColor.YELLOW] = red
     
     def add_note(self, color):
-        assert(self[color] is None)
+        if self[color] is not None:
+            raise hymisc.ChartFileError("Duplicate note.")
         note = ChordNote()
         note.colortype = color
         self[color] = note
