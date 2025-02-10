@@ -399,10 +399,18 @@ class GraphPather:
                 tc = paths[0].currentnode.timecode if paths[0].currentnode else None
                 cb_pathsprogress(tc, length / graph.length)
                 
-            
-        # Order the completed paths by score
-        paths.sort(key=lambda p: p.data.totalscore(), reverse=True)
-    
+        
+        # Expand variant paths
+        restored_paths = []
+        for p in paths:
+            p.copy_to_variants()
+            restored_paths += [v for v, _ in p.variants]
+      
+        paths += restored_paths
+        
+        # Order the completed paths by score, then activations
+        paths.sort(key=lambda p: (p.data.totalscore(), len(p.data.activations), [-a.skips for a in p.data.activations]), reverse=True)
+        
         # Paths already built their data; add them to our hydata
         for path in paths:
             self.record.paths.append(path.data)
@@ -468,13 +476,16 @@ class GraphPather:
                 worsethan_scores[worse].add(better.data.totalscore())
                 if len(worsethan_scores[worse]) > depth_value:
                     paths_to_remove.add(worse)
-            
+        
+        marked_variants = set()
         for p, q in combinations(pathgroups[False], 2):
             # Inactive SP paths: Compare both SP meter and score.
             # A path must be either better in both or better in one and 
             # tied in the other
-            cmp = 0
+            if p in marked_variants or q in marked_variants:
+                continue
             
+            cmp = 0
             p_sp = 0 if p.is_complete() else p.sp
             q_sp = 0 if q.is_complete() else q.sp
             
@@ -489,6 +500,15 @@ class GraphPather:
                 cmp += 1
             elif score_diff < 0:
                 cmp -= 1
+            
+            if sp_diff == score_diff == 0:
+                primary, secondary = (p, q)
+                primary.variants.append((secondary, len(primary.data.activations)))
+                marked_variants.add(secondary)
+                paths_to_remove.add(secondary)
+                secondary.copy_to_variants()
+                for subvariant, _ in secondary.variants:
+                    primary.variants.append((subvariant, len(primary.data.activations)))
             
             if cmp < 0:
                 better, worse = (p, q)
@@ -518,6 +538,7 @@ class GraphPath:
     def __init__(self, parent_path=None):
         if parent_path:
             self.data = parent_path.data.copy()
+            self.variants = [(GraphPath(parent_path=p), a) for p,a in parent_path.variants]
             
             self.currentnode = parent_path.currentnode
             self.sp = parent_path.sp
@@ -528,6 +549,7 @@ class GraphPath:
             self.skipped_e_offset = parent_path.skipped_e_offset
         else:
             self.data = hydata.Path()
+            self.variants = []
             
             self.currentnode = None
             self.sp = 0
@@ -537,28 +559,13 @@ class GraphPath:
             self.sp_ready_time = None
             self.skipped_e_offset = None
 
-    # Returns True if other has a conclusively better score, which requires both paths to be at the same timecode and same sp track.
-    def strictly_worse(self, other):
-        # Same time requirement
-        self_time = self.currentnode.timecode if self.currentnode else None
-        other_time = other.currentnode.timecode if other.currentnode else None
-        
-        
-        if self_time != other_time:
-            return False
-        
-        # Same sp requirement
-        self_sp_active = self.currentnode.is_sp if self.currentnode else None
-        other_sp_active = other.currentnode.is_sp if other.currentnode else None
-        
-        if self_sp_active != other_sp_active:
-            return False 
-
-        self_sp_value = (self.sp_end_time if self_sp_active else self.sp) if self.currentnode else 0
-        other_sp_value = (other.sp_end_time if other_sp_active else other.sp) if other.currentnode else 0
-        
-        return self.data.totalscore() < other.data.totalscore() and self_sp_value <= other_sp_value
-        
+    def copy_to_variants(self):
+        for v, a in self.variants:
+            restored = v
+            restored.data.activations += self.data.activations[a:]
+            for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+                setattr(restored.data, attr, getattr(self.data, attr))
+    
     # Develop along the edge that leads farther into the song.
     # Always moves a path closer to being complete, unless it's already complete.
     def advance(self):

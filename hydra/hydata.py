@@ -264,6 +264,15 @@ class HydraRecord:
         # Path results.
         self.paths = []
 
+    def __eq__(self, other):
+        if len(self.paths) != len(other.paths):
+            return False
+        
+        for i in range(len(self.paths)):
+            if self.paths[i] != other.paths[i]:
+                return False
+        
+        return True
 
 class Path:
     
@@ -279,6 +288,22 @@ class Path:
         self.score_solo = 0 
         self.score_accents = 0
         self.score_ghosts = 0
+   
+    def __eq__(self, other):
+        for listattr in ['multsqueezes', 'activations']:
+            a = getattr(self, listattr)
+            b = getattr(other, listattr)
+            if len(a) != len(b):
+                return False
+            for i in range(len(a)):
+                if a[i] != b[i]:
+                    return False
+        
+        for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
    
     def totalscore(self):
         return (
@@ -328,6 +353,22 @@ class Activation:
         
         self.e_offset = None
     
+    def __eq__(self, other):
+        for listattr in ['backends', 'sqinouts']:
+            a = getattr(self, listattr)
+            b = getattr(other, listattr)
+            if len(a) != len(b):
+                return False
+            for i in range(len(a)):
+                if a[i] != b[i]:
+                    return False
+        
+        for attr in ['skips', 'timecode', 'chord', 'sp_meter', 'frontend', 'e_offset']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
+        
     def notationstr(self):
         e = 'E' if self.is_e_critical() else ''
         return f"{e}{self.skips}{''.join(self.sqinouts)}"
@@ -366,6 +407,14 @@ class MultSqueeze:
         self.chord = None
         self.squeezecount = None
         self.points = None
+        
+    def __eq__(self, other):
+        for attr in ['multiplier', 'chord', 'squeezecount', 'points']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
+
     
     def notationstr(self):
         return f"{self.multiplier}x"
@@ -376,6 +425,14 @@ class FrontendSqueeze:
     def __init__(self, chord, points):
         self.chord = chord
         self.points = points
+        
+    def __eq__(self, other):
+        for attr in ['chord', 'points']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
+        
 
 
 class BackendSqueeze:
@@ -387,6 +444,13 @@ class BackendSqueeze:
         self.is_sp = is_sp
 
         self.offset_ms = None
+        
+    def __eq__(self, other):
+        for attr in ['timecode', 'chord', 'points', 'sqout_points', 'is_sp', 'offset_ms']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
         
     def ratingstr(self):
         """Hydra ratings for how hard the squeeze's timing is."""
@@ -499,6 +563,13 @@ class ChordNote:
         self.cymbaltype = NoteCymbalType.NORMAL
         self.is2x = False
     
+    def __eq__(self, other):
+        for attr in ['colortype', 'dynamictype', 'cymbaltype', 'is2x']:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+                
+        return True
+    
     def __str__(self):
         if self.colortype.allows_cymbals():
             cym = "Cym" if self.cymbaltype == NoteCymbalType.CYMBAL else "Tom"
@@ -556,6 +627,12 @@ class Chord:
             NoteColor.GREEN: None
         }
     
+    def __eq__(self, other):
+        for color in self.notemap.keys():
+            if self[color] != other[color]:
+                return False
+        return True
+                
     def __getitem__(self, c, objtype=None):
         return self.notemap[c]
     
@@ -592,11 +669,13 @@ class Chord:
         red = self[NoteColor.RED]
         yellow = self[NoteColor.YELLOW]
         
-        # Cymbal flip
+        # Cymbal flip and internal color reference
         if red:
             red.flip_cymbal()
+            red.colortype = NoteColor.YELLOW
         if yellow:
             yellow.flip_cymbal()
+            yellow.colortype = NoteColor.RED
         
         # Color swap
         self[NoteColor.RED] = yellow
