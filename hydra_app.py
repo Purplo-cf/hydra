@@ -884,6 +884,7 @@ def build_main_ui():
     dpg.bind_theme(standard_theme)
     
     dpg.set_viewport_resize_callback(on_viewport_resize)
+    on_viewport_resize()
 
 
 if __name__ == '__main__':
