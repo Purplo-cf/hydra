@@ -393,8 +393,8 @@ class ChartDataEntry:
         except ValueError:
             self.key_name = keystr
         
-        r_disco_on_x = r'\[mix.3.drums\d?d\]'
-        r_disco_off_x = r'\[mix.3.drums\d?\]'
+        r_disco_on_x = r'\[?mix.3.drums\d?d\]?'
+        r_disco_off_x = r'\[?mix.3.drums\d?\]?'
             
         match (valuestr, valuestr.split()):
             case v, _ if self.key_tick is None:

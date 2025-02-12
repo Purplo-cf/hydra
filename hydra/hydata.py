@@ -610,9 +610,6 @@ class ChordNote:
     
     def is_cymbal(self):
         return self.cymbaltype == NoteCymbalType.CYMBAL
-    
-    def flip_cymbal(self):
-        self.cymbaltype = self.cymbaltype.flip()
 
 
 class Chord:
@@ -669,12 +666,13 @@ class Chord:
         red = self[NoteColor.RED]
         yellow = self[NoteColor.YELLOW]
         
-        # Cymbal flip and internal color reference
         if red:
-            red.flip_cymbal()
+            # Red -> Yellow cymbal
+            red.cymbaltype = NoteCymbalType.CYMBAL
             red.colortype = NoteColor.YELLOW
         if yellow:
-            yellow.flip_cymbal()
+            # Yellow -> Red
+            yellow.cymbaltype = NoteCymbalType.NORMAL
             yellow.colortype = NoteColor.RED
         
         # Color swap
