@@ -657,6 +657,13 @@ def refresh_songdetails():
         
     viewed_record = appstate.get_selected_record()
     
+    # Enable / Disable analyze button (everything else can work off of
+    # saved data, but analysis requires the chart to be here immediately)
+    if hyutil.discover_charts(appstate.selected_song_row[4]):
+        dpg.configure_item("runbutton", enabled=True, label="Analyze paths!")
+    else:
+        dpg.configure_item("runbutton", enabled=False, label="Song file not found.\nTry scanning again.")
+    
     # Lower Panel - or quit if this row has no record yet
     
     if not viewed_record:
