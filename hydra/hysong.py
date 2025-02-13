@@ -50,13 +50,19 @@ class SongIter:
             raise StopIteration
 
         self.tick = ts.timecode.ticks
-        if self.tpm_keys and self.tick >= self.tpm_keys[0]:
-            self.tpm = self.song.tpm_changes[self.tpm_keys.pop(0)]
-        
+        pre_tpm = self.tpm
+        if self.tpm_keys:
+            if self.tick == self.tpm_keys[0]:
+                # Timestamp is exactly on a timesig change
+                self.tpm = self.song.tpm_changes[self.tpm_keys.pop(0)]
+            elif self.tick > self.tpm_keys[0]:
+                # Timestamp is past a timesig change, not on a border
+                pre_tpm = self.tpm = self.song.tpm_changes[self.tpm_keys.pop(0)]
+                
         if self.bpm_keys and self.tick >= self.bpm_keys[0]:
             self.bpm = self.song.bpm_changes[self.bpm_keys.pop(0)]
         
-        return (ts, self.tpm, self.bpm)
+        return (ts, pre_tpm, self.tpm, self.bpm)
 
 class Song:
     """The structure for charts that have been loaded in. A sequence of
@@ -78,20 +84,24 @@ class Song:
     
     def check_activations(self):
         """ If a chart has no drum fills, add them in like Clone Hero would.
-        Rule: Add at m3.1.0 + n*(4m), 1/2 m long, if there's a chord there.
-        To do: More testing around this rule. Unit tests.
+        
+        Rule: Starting with measure 2, try to add fills, half a measure long,
+        on beat 1 of measures if there's a note there. When an act
+        is successfully placed, another can't be placed for 4 measures.
         """
         if all([not ts.has_activation() for ts in self.sequence]):
             self.features.append('Auto-Generated Fills')
             tpm = self.tpm_changes[0]
-            for timestamp, tpm, bpm in self:
+            lockout_end_m = 2
+            for timestamp, pre_tpm, tpm, bpm in self:
+                measure = timestamp.timecode.measure_beats_ticks[0] + 1
                 if (
                     timestamp.timecode.is_measure_start()
-                    and timestamp.timecode.measure_beats_ticks[0] % 4 == 2
+                    and measure >= lockout_end_m
                     and timestamp.chord
-                    and not timestamp.flag_sp
                 ):
-                    timestamp.activation_length = tpm // 2
+                    timestamp.activation_length = pre_tpm // 2
+                    lockout_end_m = measure + 4
 
     def start_time(self):
         return hymisc.Timecode(0, self)
