@@ -463,8 +463,8 @@ class ChartParser:
         self._flag_solo = None
         self._flag_disco = None
         self._sp_end_tick = None
+        self._fill_start_tick = None
         self._fill_end_tick = None
-        self._fill_length = None
         
         # Ticks per quarter note
         self.resolution = None
@@ -559,7 +559,7 @@ class ChartParser:
             case ChartDataEntry(phrasevalue=2, phraselength=length):
                 return ('pre', self.op_sp_start, tick + length)
             case ChartDataEntry(phrasevalue=64, phraselength=length):
-                return ('pre', self.op_fillstart, tick + length, length)
+                return ('pre', self.op_fillstart, tick, tick + length)
             case _:
                 return (None, None)
     
@@ -572,12 +572,15 @@ class ChartParser:
     def op_timesig(self, tick, numerator, denominator):
         self.song.tpm_changes[tick] = self.song.tick_resolution * numerator * 4 // denominator
     
-    def op_fillstart(self, endtick, length):
+    def op_fillstart(self, starttick, endtick):
+        self._fill_start_tick = starttick
         self._fill_end_tick = endtick
-        self._fill_length = length
     
-    def op_fillend(self, length):
-        self.song.sequence[-1].activation_length = length
+    def op_fillend(self, starttick):
+        # Due to fallback mechanics, end tick is not always based on the
+        # authored phrase length
+        endtick = self.song.sequence[-1].timecode.ticks
+        self.song.sequence[-1].activation_length = endtick - starttick
     
     def op_sp_start(self, endtick):
         self._sp_end_tick = endtick
@@ -617,9 +620,22 @@ class ChartParser:
             self._sp_end_tick = None
         
         if self._fill_end_tick is not None and tick >= self._fill_end_tick:
-            ops.append(('post', self.op_fillend, self._fill_length))
+            # This timestamp is at or past the end of an activation marker
+            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks # >= 1
+            nextchord_dist = tick - self._fill_end_tick # >= 0
+            if nextchord_dist <= 6 and nextchord_dist <= prevchord_dist:
+                # Add this chord and then make it the activation chord
+                # if it's exact or only a few ticks after
+                # AND the previous chord isn't closer
+                order = 'post'
+            else:
+                # Let the activation fall back to the previous chord
+                # by assigning the activation before adding this chord
+                order = 'pre'
+            
+            ops.append((order, self.op_fillend, self._fill_start_tick))
+            self._fill_start_tick = None
             self._fill_end_tick = None
-            self._fill_length = None
         
         # 'pre': Effects that apply before the timestamp is added, such as a 
         #   'previous chord' mechanic that doesn't include this chord, or
@@ -656,7 +672,7 @@ class ChartParser:
                     pass
         
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
-        """After calling this, self.song will reflect the input filename.
+        """After this function, self.song will be ready.
         Must be .chart.
         """
         # Load from txt
