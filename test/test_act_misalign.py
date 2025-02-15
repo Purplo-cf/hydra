@@ -71,4 +71,17 @@ class TestActMisalign(unittest.TestCase):
     def test_post_closer(self):
         self._test_activation_note("4t post closer.chart", True)
     
-    
+    def test_control_midi(self):
+        self._test_activation_note("control.mid", True)
+       
+    def test_15_480_midi(self):
+        self._test_activation_note("-15 480t.mid", True)
+        
+    def test_16_480_midi(self):
+        self._test_activation_note("-16 480t.mid", False)
+        
+    def test_30_960_midi(self):
+        self._test_activation_note("-30 960t.mid", True)
+        
+    def test_31_960_midi(self):
+        self._test_activation_note("-31 960t.mid", False)

@@ -124,6 +124,7 @@ class MidiParser:
         self._flag_cymbals = None
         self._flag_disco = None
         self._fill_start_tick = None
+        self._fill_end_tick = None
         self._dynamics_enabled = None
 
     def optype(self, msg, tick):
@@ -168,7 +169,7 @@ class MidiParser:
             case mido.Message(note=120) if is_noteon:
                 return ('pre', self.op_fillstart, tick)
             case mido.Message(note=120) if is_noteoff:
-                return ('post', self.op_fillend, tick)
+                return ('pre', self.op_store_fillend, tick)
             case mido.Message(note=116) if is_noteoff:
                 return ('pre', self.op_sp_end)
             case mido.Message(note=112) if is_noteon:
@@ -235,8 +236,14 @@ class MidiParser:
     def op_fillstart(self, tick):
         self._fill_start_tick = tick
     
-    def op_fillend(self, tick):
-        self.song.sequence[-1].activation_length = tick - self._fill_start_tick
+    def op_store_fillend(self, tick):
+        self._fill_end_tick = tick
+        
+    def op_apply_fill(self, starttick):
+        # Due to correction mechanics, end tick is not always based on the
+        # authored phrase length
+        endtick = self.song.sequence[-1].timecode.ticks
+        self.song.sequence[-1].activation_length = endtick - starttick
     
     def op_sp_end(self):
         self.song.sequence[-1].flag_sp = True
@@ -268,10 +275,7 @@ class MidiParser:
         
         ops = [self.optype(msg, tick) for msg in self._msg_buffer]
         
-        # 'pre': Effects that apply before the timestamp is added, such as a 
-        #   'previous chord' mechanic that doesn't include this chord, or
-        #   flags that change the type of note that's about to be created.
-        # 'notes': The actual notes being created.
+        # Prepare notes (not added yet)
         for phase in ['pre', 'notes']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
@@ -280,7 +284,32 @@ class MidiParser:
                     except hymisc.ChartFileError:
                         pass
         
-        # Append to the Song
+        # Phrase end: Activation (waits until a timestamp with a chord)
+        if self._chord.count() and self._fill_end_tick is not None and tick >= self._fill_end_tick:
+            # This chord is at or past the end of an activation marker
+            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks
+            nextchord_dist = tick - self._fill_end_tick
+            if nextchord_dist <= self.song.tick_resolution // 32 and nextchord_dist <= prevchord_dist:
+                # Let the activation apply to this chord if it's at most
+                # a 1/128th note after AND the previous chord isn't closer
+                order = 'post'
+            else:
+                # Let the activation fall back to the previous chord
+                # by assigning the activation before adding this chord
+                order = 'pre_timestamp'
+            ops.append((order, self.op_apply_fill, self._fill_start_tick))
+            self._fill_start_tick = None
+            self._fill_end_tick = None
+        
+        # Parsed actions that apply before the timestamp
+        for op_phase, op, *op_args in ops:
+            if op_phase == 'pre_timestamp':
+                try:
+                    op(*op_args)
+                except hymisc.ChartFileError:
+                    pass
+        
+        # Add the timestamp to the song
         if self._chord.count():
             timestamp = SongTimestamp()
             timestamp.chord = self._chord
@@ -292,8 +321,7 @@ class MidiParser:
             self.song.sequence.append(timestamp)
             self._chord = None
             
-        # 'post': Effects that apply after the timestamp is added, such as a
-        #   'previous chord' mechanic that includes this chord
+        # Parsed actions that apply after the timestamp
         for op_phase, op, *op_args in ops:
                 if op_phase == 'post':
                     try:
@@ -465,9 +493,6 @@ class ChartParser:
         self._sp_end_tick = None
         self._fill_start_tick = None
         self._fill_end_tick = None
-        
-        # Ticks per quarter note
-        self.resolution = None
     
     def load_sections(self, charttxt):
         """Loads the chartfile's sections from text form so they can be 
@@ -577,7 +602,7 @@ class ChartParser:
         self._fill_end_tick = endtick
     
     def op_fillend(self, starttick):
-        # Due to fallback mechanics, end tick is not always based on the
+        # Due to correction mechanics, end tick is not always based on the
         # authored phrase length
         endtick = self.song.sequence[-1].timecode.ticks
         self.song.sequence[-1].activation_length = endtick - starttick
@@ -607,42 +632,18 @@ class ChartParser:
         self._chord.apply_cymbal(color)
     
     def push_timestamp(self, tick, entries):
-        # Process all the events that happened simultaneously on this tick.
-        # Because we've collected the events, we can easily do them in
-        # whichever order as configured in the optype function
+        """Process all the events that happened simultaneously on this tick.
+        
+        Because we've collected the events, we can easily do them in whichever
+        order as configured in the optype function.
+        
+        """
         self._chord = hydata.Chord()
         
         ops = [self.optype(entry, tick) for entry in entries]
         
-        # ops that come from ticks elapsing, not their own entries
-        if self._sp_end_tick is not None and tick >= self._sp_end_tick:
-            ops.append(('pre', self.op_sp_end))
-            self._sp_end_tick = None
-        
-        if self._fill_end_tick is not None and tick >= self._fill_end_tick:
-            # This timestamp is at or past the end of an activation marker
-            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks # >= 1
-            nextchord_dist = tick - self._fill_end_tick # >= 0
-            if nextchord_dist <= 6 and nextchord_dist <= prevchord_dist:
-                # Add this chord and then make it the activation chord
-                # if it's exact or only a few ticks after
-                # AND the previous chord isn't closer
-                order = 'post'
-            else:
-                # Let the activation fall back to the previous chord
-                # by assigning the activation before adding this chord
-                order = 'pre'
-            
-            ops.append((order, self.op_fillend, self._fill_start_tick))
-            self._fill_start_tick = None
-            self._fill_end_tick = None
-        
-        # 'pre': Effects that apply before the timestamp is added, such as a 
-        #   'previous chord' mechanic that doesn't include this chord, or
-        #   flags that change the type of note that's about to be created.
-        # 'notes': The actual notes being created.
-        # 'note_mods': Modifiers for a pre-existing note
-        for phase in ['pre', 'notes', 'note_mods']:
+        # Prepare notes (not added yet)
+        for phase in ['notes', 'note_mods']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
                     try:
@@ -650,7 +651,37 @@ class ChartParser:
                     except hymisc.ChartFileError:
                         pass
         
-        # Append to the Song
+        # Phrase end: SP 
+        if self._sp_end_tick is not None and tick >= self._sp_end_tick:
+            ops.append(('pre', self.op_sp_end))
+            self._sp_end_tick = None
+        
+        # Phrase end: Activation (waits until a timestamp with a chord)
+        if self._chord.count() and self._fill_end_tick is not None and tick >= self._fill_end_tick:
+            # This chord is at or past the end of an activation marker
+            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks
+            nextchord_dist = tick - self._fill_end_tick
+            if nextchord_dist <= self.song.tick_resolution // 32 and nextchord_dist <= prevchord_dist:
+                # Let the activation apply to this chord if it's at most
+                # a 1/128th note after AND the previous chord isn't closer
+                order = 'post'
+            else:
+                # Let the activation fall back to the previous chord
+                # by assigning the activation before adding this chord
+                order = 'pre'
+            ops.append((order, self.op_fillend, self._fill_start_tick))
+            self._fill_start_tick = None
+            self._fill_end_tick = None
+        
+        # Parsed actions that apply before the timestamp
+        for op_phase, op, *op_args in ops:
+            if op_phase == 'pre':
+                try:
+                    op(*op_args)
+                except hymisc.ChartFileError:
+                    pass
+    
+        # Add the timestamp to the song
         if self._chord.count():
             timestamp = SongTimestamp()
             timestamp.chord = self._chord
@@ -662,8 +693,7 @@ class ChartParser:
             self.song.sequence.append(timestamp)
             self._chord = None
             
-        # 'post': Effects that apply after the timestamp is added, such as a
-        #   'previous chord' mechanic that includes this chord
+        # Parsed actions that apply after the timestamp
         for op_phase, op, *op_args in ops:
             if op_phase == 'post':
                 try:
