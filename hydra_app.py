@@ -22,8 +22,11 @@ def scan_library():
     Replaces the current one if it's already there.
     
     """
+    errors = []
+    
     # Map out the file locations first
-    chartfiles = hyutil.discover_charts(appstate.usettings.chartfolder, on_scan_findprogress)
+    chartfiles, folder_errors = hyutil.discover_charts(appstate.usettings.chartfolder, on_scan_findprogress)
+    errors += folder_errors
     on_scan_findcomplete(len(chartfiles))
     
     cxn = sqlite3.connect(hymisc.DBPATH)
@@ -34,7 +37,6 @@ def scan_library():
     cur.execute("DROP TABLE IF EXISTS charts")
     cur.execute(f"CREATE TABLE charts({chartrow})")
     
-    errors = []
     # Copy info from each ini to the db
     for i, (chartfile, inifile, dirname) in enumerate(chartfiles):
         try:
@@ -433,7 +435,7 @@ def on_run_chart(sender, app_data, user_data):
     dpg.show_item("songdetails_progresspanel")
     reset_analyze_modal()
     # run chart
-    chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0]
+    chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0][0]
     record = hyutil.analyze_chart(
         chartfile,
         appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
@@ -659,7 +661,7 @@ def refresh_songdetails():
     
     # Enable / Disable analyze button (everything else can work off of
     # saved data, but analysis requires the chart to be here immediately)
-    if hyutil.discover_charts(appstate.selected_song_row[4]):
+    if hyutil.discover_charts(appstate.selected_song_row[4])[0]:
         dpg.configure_item("runbutton", enabled=True, label="Analyze paths!")
     else:
         dpg.configure_item("runbutton", enabled=False, label="Song file not found.\nTry scanning again.")

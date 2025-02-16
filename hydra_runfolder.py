@@ -17,7 +17,7 @@ if __name__ == "__main__":
     book = {}
     
     charts_root = sys.argv[1]
-    charts = hyutil.discover_charts(charts_root)
+    charts = hyutil.discover_charts(charts_root)[0]
     
     print(f"\nFound {len(charts)} charts in '{charts_root}'.\n")
     

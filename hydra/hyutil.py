@@ -13,7 +13,8 @@ from . import hymisc
 
     
 def discover_charts(rootname, cb_progress=None):
-    """Returns a list of tuples (notesfile, inifile, folder).
+    """Returns a list of tuples (notesfile, inifile, folder) and a list of 
+    encountered errors.
     
     Looks for charts in the given root folder.
     
@@ -21,13 +22,14 @@ def discover_charts(rootname, cb_progress=None):
     # Use input root folder to initialize search paths
     try:
         rootdir = os.listdir(rootname)
-    except FileNotFoundError:
-        return []
+    except FileNotFoundError as e:
+        return [], [e]
     unexplored = [os.sep.join([rootname, name]) for name in rootdir]
     
     # Search subfolders and group chart/ini files by their parent folder
     # {dirname: [chartfile, inifile, dirname]}
     found_by_dirname = {}
+    errors = []
     while unexplored:
         f = unexplored.pop()
         dir = os.path.dirname(f)
@@ -54,9 +56,16 @@ def discover_charts(rootname, cb_progress=None):
                         cb_progress(len(found_by_dirname))
         else:
             # Handle a folder - add subfolders to the search
-            unexplored += [os.sep.join([f, name]) for name in os.listdir(f)]
+            try:
+                subnames = os.listdir(f)
+            except Exception as e:
+                errors.append(e)
+                continue
+                
+            for subname in subnames:
+                unexplored.append(os.sep.join([f, subname]))
             
-    return [tuple(info) for info in found_by_dirname.values() if all(info)]
+    return ([tuple(info) for info in found_by_dirname.values() if all(info)], errors)
 
 
 def get_rowvalues(chartfile, inifile, path, rootfolder):
