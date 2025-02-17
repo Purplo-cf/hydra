@@ -247,8 +247,7 @@ def on_viewport_resize():
     # Loading modal sizes: Heavily inset window
     dpg.configure_item(
         "songdetails_progresspanel", pos=(400, 200),
-        width=dpg.get_viewport_width() - 22 - 800,
-        height=125
+        width=dpg.get_viewport_width() - 22 - 800
     )
     
     # Song details sizes: Slightly inset window
@@ -435,22 +434,34 @@ def on_run_chart(sender, app_data, user_data):
     dpg.show_item("songdetails_progresspanel")
     reset_analyze_modal()
     # run chart
-    chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0][0]
-    record = hyutil.analyze_chart(
-        chartfile,
-        appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
-        appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
-        on_analyze_parsecomplete, on_analyze_pathsprogress
-    )
+    try:
+        chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0][0]
+        record = hyutil.analyze_chart(
+            chartfile,
+            appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
+            appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
+            on_analyze_parsecomplete, on_analyze_pathsprogress
+        )
+    except Exception as e:
+        dpg.configure_item("songdetails_progresspanel", height=180)
+        dpg.set_value("analyze_errorcontent", str(e))
+        dpg.show_item("analyze_errorlabel")
+        dpg.show_item("analyze_errorcontent")
+        dpg.show_item("analyze_dismissbutton")
+        return
+    
     dpg.configure_item("analyze_opt_bar", overlay="")
     dpg.set_value("analyze_opt_bar", 1)
     dpg.show_item("analyze_opt_done")
     
     appstate.hydatabook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
-    
     appstate.hydatabook.add_record(appstate.selected_song_row[0], appstate.usettings.chartmode_key(), record)
-    # pause
+
     time.sleep(0.5)
+    on_analyze_dismiss(None, None)
+
+
+def on_analyze_dismiss(sender, app_data):
     # update record displays
     refresh_tableview()
     refresh_songdetails()
@@ -460,6 +471,7 @@ def on_run_chart(sender, app_data, user_data):
     dpg.show_item("songdetails_lowerpanel")
     dpg.hide_item("songdetails_progresspanel")
     dpg.configure_item("songdetails", no_title_bar=False, no_close=False)
+
 
 """Progress callbacks (reactions to processing rather than UI interactions)"""
 
@@ -534,10 +546,13 @@ def reset_scan_modal():
     dpg.hide_item("scanprogress_dismiss")
     
 def reset_analyze_modal():
+    dpg.configure_item("songdetails_progresspanel", height=125)
     dpg.hide_item("analyze_opt_label")
     dpg.hide_item("analyze_opt_bar")
     dpg.hide_item("analyze_opt_done")
-    
+    dpg.hide_item("analyze_errorlabel")
+    dpg.hide_item("analyze_errorcontent")
+    dpg.hide_item("analyze_dismissbutton")
     dpg.set_value("analyze_opt_bar", 0)
     
 def on_analyze_parsecomplete():
@@ -856,6 +871,10 @@ def build_main_ui():
                 dpg.add_progress_bar(tag="analyze_opt_bar", show=False, width=-18)
                 dpg.bind_item_font("analyze_opt_bar", "MonoFont")
                 dpg.add_text("Done!", tag="analyze_opt_done", show=False)
+                dpg.add_text("An error occurred:", tag="analyze_errorlabel", show=False)
+                dpg.add_text("", tag="analyze_errorcontent", show=False)
+                dpg.bind_item_font(dpg.last_item(), "MonoFont")
+                dpg.add_button(tag="analyze_dismissbutton", label="Continue", callback=on_analyze_dismiss, show=False)
 
     # Theme
     with dpg.theme() as standard_theme:
