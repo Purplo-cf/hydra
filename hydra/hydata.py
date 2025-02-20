@@ -129,20 +129,31 @@ def json_save(obj):
     raise TypeError(f"Unhanded type: {type(obj)}")
     
 def json_load(_dict):
-    """Dict --> Object conversion."""
+    """JSON has loaded a dict; try to fit it to Hydra data types.
+    
+    Hydra data types are saved with an __obj__ value to facilitate this.
+    
+    The top level maps hyhash keys to a 'records' map with keys based on
+    difficulty/pro/2x. Everything after that is a hydata object.
+    """
     try:
         obj_code = _dict['__obj__']
     except KeyError:
+        # Not one of our objects, just a dict
         return _dict
     
-    try:
-        if obj_code == 'record':
-            o = HydraRecord()
-            o.hyversion = _dict['hyversion']
-            o.paths = _dict['paths']
-            
+    if obj_code == 'record':
+        o = HydraRecord()
+        o.hyversion = tuple(_dict['hyversion'])
+        
+        if not o.is_version_compatible():
             return o
         
+        o.paths = _dict['paths']
+        
+        return o
+    
+    try:
         if obj_code == 'path':
             o = Path()
             o.multsqueezes = _dict['multsqueezes']
@@ -273,6 +284,10 @@ class HydraRecord:
                 return False
         
         return True
+    
+    def is_version_compatible(self):
+        return self.hyversion[:2] == hymisc.HYDRA_VERSION[:2]
+
 
 class Path:
     

@@ -5,14 +5,14 @@ import sys
 """Semantic version number for Hydra.
     
 Major version update: Incompatible changes or big milestones.
-Minor version update: Changes that are expected to affect paths/scores.
+Minor version update: Changes that affect save data or analysis results.
 Patch version update: UI or other cosmetic changes.
 
-Records with an old major version will be wiped without trying to read them.
-Records with an old minor version will be marked stale, but will work normally.
+For sanity reasons, records with a mismatched major or minor version
+will not be supported and the app will just ask the user to re-analyze them.
 
 """
-HYDRA_VERSION = (1,0,0)
+HYDRA_VERSION = (1,1,0)
 
 
 """Static paths and files"""

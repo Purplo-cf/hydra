@@ -632,9 +632,14 @@ def refresh_tableview():
         try:
             record = appstate.get_record(entries[r][0], appstate.usettings.chartmode_key())
             if record:
-                dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label=record.paths[0].pathstring(), user_data=entries[r])
-                dpg.bind_item_theme(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "bestpath_theme")
-                dpg.bind_item_font(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "MonoFont")
+                if record.is_version_compatible():
+                    dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label=record.paths[0].pathstring(), user_data=entries[r])
+                    dpg.bind_item_theme(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "bestpath_theme")
+                    dpg.bind_item_font(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "MonoFont")
+                else:
+                    dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label="(Update...)", user_data=entries[r])
+                    dpg.bind_item_theme(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "warning_theme")
+                    dpg.bind_item_font(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "MonoFont")
             else:
                 dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label="(New...)", user_data=entries[r])
                 dpg.bind_item_theme(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "newsong_theme")
@@ -688,13 +693,23 @@ def refresh_songdetails():
         dpg.hide_item("songdetails_pathdetails")
         dpg.hide_item("songdetails_pathdivider")
         dpg.show_item("songdetails_nopathsyet")
+        dpg.hide_item("songdetails_plsupdaterecord")
+        return
+    
+    if not viewed_record.is_version_compatible():
+        dpg.hide_item("songdetails_pathpanel")
+        dpg.hide_item("songdetails_pathdetails")
+        dpg.hide_item("songdetails_pathdivider")
+        dpg.hide_item("songdetails_nopathsyet")
+        dpg.show_item("songdetails_plsupdaterecord")
         return
     
     dpg.show_item("songdetails_pathpanel")
     dpg.show_item("songdetails_pathdetails")
     dpg.show_item("songdetails_pathdivider")
     dpg.hide_item("songdetails_nopathsyet")
-    
+    dpg.hide_item("songdetails_plsupdaterecord")
+        
     # Rebuild path list
     
     dpg.delete_item("songdetails_pathpanel", children_only=True)
@@ -856,6 +871,9 @@ def build_main_ui():
                     #dpg.add_text("???")
         with dpg.group(tag="songdetails_lowerpanel", horizontal=True, height=-1):
             dpg.add_text("After analyzing this song, paths will show up here.", tag="songdetails_nopathsyet", show=False, indent=12)
+            dpg.bind_item_font(dpg.last_item(), "MainFont24")
+            dpg.add_text("This record is out of date. To make sure you have the latest results, please re-analyze.", tag="songdetails_plsupdaterecord", show=False, indent=12)
+            dpg.bind_item_font(dpg.last_item(), "MainFont24")
             dpg.add_child_window(tag="songdetails_pathpanel", border=False, width=540)
             with dpg.child_window(tag="songdetails_pathdivider", border=False, width=40, frame_style=True):
                 dpg.add_text(" >>>", pos=(5,0))
@@ -904,6 +922,11 @@ def build_main_ui():
     with dpg.theme(tag="bestpath_theme"):
         with dpg.theme_component(dpg.mvAll):
             dpg.add_theme_color(dpg.mvThemeCol_Text, (250,210,0))
+            
+    with dpg.theme(tag="warning_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (255,127,0))
+    
     
     with dpg.theme(tag="newsong_theme"):
         with dpg.theme_component(dpg.mvAll):
