@@ -7,65 +7,68 @@ import hydra.hydata as hydata
 
 
 class TestSqinout(unittest.TestCase):
-    """Test that the score breakdowns match between the test solution and
-    the test input freshly analyzed.
-    
-    Any chart + score can be added as a test as long as the score is pretty
-    confidently optimal AND the Clone Hero score breakdown for that optimal
-    run is known.
-    
-    This file is for sqinout mechanics i.e. various sp backend situations.
-    """
+    """Tests for sqinout mechanics i.e. various sp backend situations."""
     def setUp(self):
         self.chartfolder = os.sep.join(["..","test","input","test_sqinout"])
-        
-        # Get the solution data
-        solnspath = os.sep.join(["..","test","solutions","test_sqinout.json"])
-        with open(solnspath, 'r') as jsonfile:
-            self.book = json.load(jsonfile, object_hook=hydata.json_load)
     
-    def _test_scoring(self, chartname, hyhash):
+    def _test_scoring(
+        self, chartname,
+        s_base, s_combo, s_sp, s_solo, s_accents, s_ghosts, s_total
+    ):
         chartpath = self.chartfolder + os.sep + chartname
-        record = hyutil.analyze_chart(
+        path = hyutil.analyze_chart(
             chartpath,
             'expert', True, True,
             'scores', 0
-        )
-        soln_record = self.book[hyhash]['records']['Expert Pro Drums, 2x Bass']
+        ).paths[0]
         
-        path = record.paths[0]
-        soln = soln_record.paths[0]
+        self.assertEqual(path.score_base, s_base)
+        self.assertEqual(path.score_combo, s_combo)
+        self.assertEqual(path.score_sp, s_sp)
+        self.assertEqual(path.score_solo, s_solo)
+        self.assertEqual(path.score_accents, s_accents)
+        self.assertEqual(path.score_ghosts, s_ghosts)
         
-        self.assertEqual(path.score_base, soln.score_base)
-        self.assertEqual(path.score_combo, soln.score_combo)
-        self.assertEqual(path.score_sp, soln.score_sp)
-        self.assertEqual(path.score_solo, soln.score_solo)
-        self.assertEqual(path.score_accents, soln.score_accents)
-        self.assertEqual(path.score_ghosts, soln.score_ghosts)
-        
-        self.assertEqual(path.totalscore(), soln.totalscore())
+        self.assertEqual(path.totalscore(), s_total)
         
     def test_sqin_0ms(self):
-        self._test_scoring("sqin_0ms.chart", 'a5480902a492edfba92033a209afc253')
+        self._test_scoring(
+            "sqin_0ms.chart",
+            1900, 2850, 3200, 0, 0, 0, 7950
+        )
         
     def test_sqin_early(self):
-        self._test_scoring("sqin_early.chart", '1739d51f18dbc5701a3e52d43c9fa6ef')
+        self._test_scoring(
+            "sqin_early.chart",
+            2200, 3750, 3950, 0, 0, 0, 9900
+        )
         
     def test_sqin_late(self):
-        self._test_scoring("sqin_late.chart", '405d5ae80f4499a79341a9b88a39109f')
+        self._test_scoring(
+            "sqin_late.chart",
+            2200, 3750, 3950, 0, 0, 0, 9900
+        )
     
     def test_sqout_0ms(self):
-        self._test_scoring("sqout_0ms.chart", '0df6dd52fab41f03987a9238c9fa61d2')
+        self._test_scoring(
+            "sqout_0ms.chart",
+            2150, 3600, 4200, 0, 0, 0, 9950
+        )
 
     def test_sqout_early(self):
-        self._test_scoring("sqout_early.chart", '68c9752a1855fb7ab28c70803c3b486e')
+        self._test_scoring(
+            "sqout_early.chart",
+            2200, 3750, 4500, 0, 0, 0, 10450
+        )
         
     def test_sqout_early_emptydeact(self):
-        self._test_scoring("sqout_early_emptydeact.chart", '08269472b520688f05f0f2e19520da16')
+        self._test_scoring(
+            "sqout_early_emptydeact.chart",
+            2150, 3600, 4350, 0, 0, 0, 10100
+        )
         
     def test_sqout_late(self):
-        self._test_scoring("sqout_late.chart", '57271d6efdaecc00d904b60b365bc8d9')
-
-    # To do: More edge cases between SqIn/backends and SqOut/frontends.
-    # Especially a frontend that is squeezed in despite being
-    # before the activation chord.
+        self._test_scoring(
+            "sqout_late.chart",
+            2200, 3750, 4500, 0, 0, 0, 10450
+        )
