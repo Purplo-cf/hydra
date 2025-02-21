@@ -584,7 +584,7 @@ class GraphPath:
             self.data.score_accents += adv_edge.accentscore
             self.data.score_ghosts += adv_edge.ghostscore
             
-            #self.data.notecount += adv_edge.notecount
+            self.data.notecount += adv_edge.notecount
             
             #print(f"\tGoing to {adv_edge.dest.timecode.measurestr()}.")
             # Applying SP on this edge

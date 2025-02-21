@@ -303,6 +303,8 @@ class Path:
         self.score_solo = 0 
         self.score_accents = 0
         self.score_ghosts = 0
+        
+        self.notecount = 0
    
     def __eq__(self, other):
         for listattr in ['multsqueezes', 'activations']:
@@ -314,7 +316,10 @@ class Path:
                 if a[i] != b[i]:
                     return False
         
-        for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+        for attr in [
+            'score_base', 'score_combo', 'score_sp', 'score_solo',
+            'score_accents', 'score_ghosts', 'notecount'
+        ]:
             if getattr(self, attr) != getattr(other, attr):
                 return False
                 
@@ -331,6 +336,11 @@ class Path:
             return ' '.join([str(a.notationstr()) for a in self.activations])
         else:
             return "(No activations.)"
+
+    def avg_mult(self):
+        multscore = self.totalscore() - self.score_solo
+        basescore = self.score_base + self.score_ghosts + self.score_accents
+        return multscore / basescore
 
     def copy(self):
         c = Path()
@@ -350,6 +360,8 @@ class Path:
         c.score_solo = self.score_solo
         c.score_accents = self.score_accents
         c.score_ghosts = self.score_ghosts
+        
+        c.notecount = self.notecount
         
         return c
 
