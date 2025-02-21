@@ -67,3 +67,9 @@ class TestScoring(unittest.TestCase):
             "atp.mid",
             101845, 344510, 153540, 0, 2550, 11750, 614195
         )
+        
+    def test_sws(self):
+        self._test_scoring(
+            "sws.chart",
+            1050, 700, 1050, 1000, 0, 0, 3800
+        )
