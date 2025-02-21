@@ -340,7 +340,7 @@ class Path:
     def avg_mult(self):
         multscore = self.totalscore() - self.score_solo
         basescore = self.score_base + self.score_ghosts + self.score_accents
-        return multscore / basescore
+        return float(multscore / basescore)
 
     def copy(self):
         c = Path()

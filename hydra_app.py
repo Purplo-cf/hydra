@@ -403,7 +403,9 @@ def on_path_selected(sender, app_data, record):
     
     with dpg.tree_node(label="Score breakdown", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        dpg.add_text(f"Notes:            {record.score_base: >10,}")
+        dpg.add_text(f"Avg. Multiplier:      {(str(record.avg_mult()) + "000")[:5]}x")
+        dpg.bind_item_font(dpg.last_item(), "MonoFont")
+        dpg.add_text(f"\nNotes:            {record.score_base: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
         dpg.add_text(f"Combo Bonus:      {record.score_combo: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
