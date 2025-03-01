@@ -25,7 +25,10 @@ def scan_library():
     errors = []
     
     # Map out the file locations first
-    chartfiles, folder_errors = hyutil.discover_charts(appstate.usettings.chartfolder, on_scan_findprogress)
+    chartfiles, folder_errors = hyutil.discover_charts(
+        appstate.usettings.chartfolders,
+        on_scan_findprogress
+    )
     errors += folder_errors
     on_scan_findcomplete(len(chartfiles))
     
@@ -38,11 +41,14 @@ def scan_library():
     cur.execute(f"CREATE TABLE charts({chartrow})")
     
     # Copy info from each ini to the db
-    for i, (chartfile, inifile, dirname) in enumerate(chartfiles):
+    for i, info in enumerate(chartfiles):
         try:
             # Insert into db
-            rowvalues = hyutil.get_rowvalues(chartfile, inifile, dirname, appstate.usettings.chartfolder)
-            cur.execute(f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)", rowvalues)
+            rowvalues = hyutil.get_rowvalues(*info)
+            cur.execute(
+                f"INSERT INTO charts VALUES (?, ?, ?, ?, ?, ?)",
+                rowvalues
+            )
         except Exception as e:
             errors.append(str(e))
         on_scan_db_progress(i+1, len(chartfiles))
@@ -61,21 +67,33 @@ class HyAppUserSetting:
     at the same time.
     
     """
-    def __init__(self, getbool=False):
-        self.getbool = getbool
+    def __init__(self, astype='str'):
+        self.astype = astype
         
     def __set_name__(self, owner, name):
         self.key = name
     
     def __get__(self, obj, objtype=None):
-        if self.getbool:
-            return obj.cfg['hydra'].getboolean(self.key)
-        else:
-            return obj.cfg['hydra'][self.key]
+        match self.astype:
+            case 'bool':
+                return obj.cfg['hydra'].getboolean(self.key)
+            case 'strlist':
+                strs = obj.cfg['hydra'][self.key].strip().split('\n')
+                return [s for s in strs if s != ""]
+            case _:
+                return obj.cfg['hydra'][self.key]
         
     def __set__(self, obj, value):
-        obj.cfg['hydra'][self.key] = str(value)
+        match self.astype:
+            case 'bool':
+                obj.cfg['hydra'][self.key] = str(value)
+            case 'strlist':
+                obj.cfg['hydra'][self.key] = '\n'.join(value)
+            case _:
+                obj.cfg['hydra'][self.key] = str(value)
+        
         obj.savecfg()
+
 
 class HyAppUserSettings:
     """Interface for hydra's saveable settings.
@@ -89,11 +107,11 @@ class HyAppUserSettings:
     
     """
     version = HyAppUserSetting()
-    chartfolder = HyAppUserSetting()
-    lastscanfolder = HyAppUserSetting()
+    chartfolders = HyAppUserSetting(astype='strlist')
+    is_rescan = HyAppUserSetting(astype='bool')
     view_difficulty = HyAppUserSetting()
-    view_prodrums = HyAppUserSetting(getbool=True)
-    view_bass2x = HyAppUserSetting(getbool=True)
+    view_prodrums = HyAppUserSetting(astype='bool')
+    view_bass2x = HyAppUserSetting(astype='bool')
     depth_value = HyAppUserSetting()
     depth_mode = HyAppUserSetting()
     
@@ -117,8 +135,8 @@ class HyAppUserSettings:
         
         # Fill in any missing values manually with defaults
         for key, default in [
-            ('chartfolder', ""),
-            ('lastscanfolder', ""),
+            ('chartfolders', ""),
+            ('is_rescan', 'False'),
             ('view_difficulty', 'Expert'),
             ('view_prodrums', 'True'),
             ('view_bass2x', 'True'),
@@ -130,6 +148,13 @@ class HyAppUserSettings:
             
         # Save in case anything was filled in
         self.savecfg()
+
+    def add_chartfolder(self, folder):
+        if folder not in self.chartfolders:
+            self.chartfolders += [folder]
+        
+    def remove_chartfolder(self, folder):
+        self.chartfolders = [f for f in self.chartfolders if f != folder]
 
     def savecfg(self):
         with open(hymisc.INIPATH, 'w') as cfgfile:
@@ -265,11 +290,18 @@ def set_scanmodal_height(long=False):
         height=h
     )
                         
-def on_select_chartfolder():
+def on_add_chartfolder():
     dpg.show_item("select_chartfolder")
         
-def on_chartfolder_selected(sender, app_data):
-    appstate.usettings.chartfolder = app_data['file_path_name']
+def on_chartfolder_added(sender, app_data):
+    appstate.usettings.add_chartfolder(app_data['file_path_name'])
+    appstate.usettings.is_rescan = False
+    dpg.set_value("songfolder_parent", True)
+    refresh_chartfolder()
+    
+def on_chartfolder_removed(sender, app_data, user_data):
+    appstate.usettings.remove_chartfolder(user_data)
+    appstate.usettings.is_rescan = False
     refresh_chartfolder()
 
 def on_viewdifficulty(sender, app_data):
@@ -313,11 +345,12 @@ def on_scan():
 def on_scan_dismiss():
     dpg.hide_item("scanprogress")
     
-    appstate.usettings.lastscanfolder = appstate.usettings.chartfolder
+    appstate.usettings.is_rescan = True
     
     cache_librarysize()
     
     refresh_librarytitle()
+    dpg.set_value("songfolder_parent", False)
     refresh_chartfolder()
     appstate.table_viewpage = 0
     refresh_tableview()
@@ -567,13 +600,25 @@ def on_analyze_pathsprogress(timecode, progressf):
     dpg.set_value("analyze_opt_bar", progressf)
 
 def refresh_chartfolder():
-    folder = appstate.usettings.chartfolder
-    lastscan = appstate.usettings.lastscanfolder
-    dpg.set_value("chartfoldertext", f"Library folder: {folder}")
-    repeat_scan = lastscan != "" and folder == lastscan
-    labeltxt = "Refresh scan" if repeat_scan else "Scan charts"
-    dpg.configure_item("scanbutton", enabled=folder != "", label=labeltxt)
-    
+    dpg.delete_item("songfolder_contents", children_only=True)
+    if appstate.usettings.chartfolders:
+        dpg.configure_item("songfolder_contents", height=4+28*len(appstate.usettings.chartfolders))
+        dpg.add_spacer(parent="songfolder_contents", height=0)
+        for songfolder in appstate.usettings.chartfolders:
+            with dpg.group(parent="songfolder_contents", horizontal=True):
+                dpg.add_button(label="X", width=20, indent=6, callback=on_chartfolder_removed, user_data=songfolder)
+                dpg.bind_item_theme(dpg.last_item(), "delete_theme")
+                dpg.add_text(songfolder)
+        
+        labeltxt = "Refresh scan" if appstate.usettings.is_rescan else "Scan charts"
+        dpg.configure_item("scanbutton", enabled=True, label=labeltxt)
+        
+    else:
+        dpg.set_value("songfolder_parent", True)
+        dpg.configure_item("songfolder_contents", height=28)
+        dpg.add_text("(None.)", parent="songfolder_contents")
+        dpg.configure_item("scanbutton", enabled=False, label="Scan charts")
+
 def refresh_viewdifficulty():
     dpg.set_value("view_difficulty_combo", appstate.usettings.view_difficulty)
 def refresh_viewprodrums():
@@ -772,12 +817,65 @@ def build_main_ui():
         
     dpg.bind_font("MainFont")
     
+    # Theme
+    with dpg.theme() as standard_theme:
+        with dpg.theme_component(dpg.mvButton, enabled_state=True):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 150, 150))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
+
+            
+        with dpg.theme_component(dpg.mvButton, enabled_state=False):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (200, 200, 200))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (100, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (100, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
+            
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (100, 0, 0))
+            dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (0, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (0, 150, 150))
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (0, 100, 100))
+            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
+            dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, (0, 200, 200))
+    
+    with dpg.theme(tag="bestpath_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (250,210,0))
+            
+    with dpg.theme(tag="warning_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (255,127,0))
+    
+    with dpg.theme(tag="newsong_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (100,100,100))
+            
+    with dpg.theme(tag="songfolder_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_ChildBg, (50, 50, 50))
+            
+    with dpg.theme(tag="delete_theme"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (180, 5, 5))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (250, 50, 50))
+            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (250, 100, 100))
+
+    dpg.bind_theme(standard_theme)
+    
     # Add main content to main window
     with dpg.group(tag="mainwindowcontent", parent="mainwindow", show=False):
         dpg.add_separator(label="Settings")
-        dpg.add_text("Library folder: uninitialized", tag="chartfoldertext")
+        with dpg.tree_node(tag="songfolder_parent", label="Song folders:", default_open=False):
+            with dpg.child_window(tag="songfolder_contents", height=50, border=False):
+                dpg.bind_item_theme("songfolder_contents", "songfolder_theme")
+                dpg.add_text("Dummy song folder slot")
+        dpg.add_spacer(height=2)
         with dpg.group(horizontal=True):
-            dpg.add_button(label="Select folder...", callback=on_select_chartfolder)
+            dpg.add_button(label="Add folder...", callback=on_add_chartfolder)
             dpg.add_button(tag="scanbutton", label="Scan charts", callback=on_scan)
         dpg.add_spacer(height=2)
         dpg.add_separator(label="Library", tag="librarytitle")
@@ -823,7 +921,7 @@ def build_main_ui():
         
     # Showable
     dpg.add_file_dialog(
-            directory_selector=True, show=False, callback=on_chartfolder_selected,
+            directory_selector=True, show=False, callback=on_chartfolder_added,
             tag="select_chartfolder", width=700 ,height=400)
 
     with dpg.window(tag="scanprogress", show=False, modal=True, no_title_bar=True, no_close=True, no_resize=True, no_move=True):
@@ -895,46 +993,6 @@ def build_main_ui():
                 dpg.add_text("", tag="analyze_errorcontent", show=False)
                 dpg.bind_item_font(dpg.last_item(), "MonoFont")
                 dpg.add_button(tag="analyze_dismissbutton", label="Continue", callback=on_analyze_dismiss, show=False)
-
-    # Theme
-    with dpg.theme() as standard_theme:
-        with dpg.theme_component(dpg.mvButton, enabled_state=True):
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 150, 150))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
-
-            
-        with dpg.theme_component(dpg.mvButton, enabled_state=False):
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (200, 200, 200))
-            dpg.add_theme_color(dpg.mvThemeCol_Button, (100, 100, 100))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (100, 100, 100))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
-            
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (100, 0, 0))
-            dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (0, 180, 180))
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBgHovered, (0, 100, 100))
-            dpg.add_theme_color(dpg.mvThemeCol_FrameBgActive, (0, 150, 150))
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderHovered, (0, 100, 100))
-            dpg.add_theme_color(dpg.mvThemeCol_HeaderActive, (0, 180, 180))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
-            dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
-            dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, (0, 200, 200))
-    
-    with dpg.theme(tag="bestpath_theme"):
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (250,210,0))
-            
-    with dpg.theme(tag="warning_theme"):
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (255,127,0))
-    
-    
-    with dpg.theme(tag="newsong_theme"):
-        with dpg.theme_component(dpg.mvAll):
-            dpg.add_theme_color(dpg.mvThemeCol_Text, (100,100,100))
-
-    dpg.bind_theme(standard_theme)
     
     dpg.set_viewport_resize_callback(on_viewport_resize)
     on_viewport_resize()

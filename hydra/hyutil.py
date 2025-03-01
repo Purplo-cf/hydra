@@ -12,48 +12,43 @@ from . import hysong
 from . import hymisc
 
     
-def discover_charts(rootname, cb_progress=None):
-    """Returns a list of tuples (notesfile, inifile, folder) and a list of 
-    encountered errors.
+def discover_charts(rootfolders, cb_progress=None):
+    """Returns a list of tuples (chartfile, inifile, chartfolder, subfolders)
+    and a list of encountered errors.
     
-    Looks for charts in the given root folder.
-    
+    Recursively searches for charts in the given root folders.
     """
-    # Use input root folder to initialize search paths
     try:
-        rootdir = os.listdir(rootname)
+        # (current search path, original root folder)
+        unexplored = [(root, root) for root in rootfolders]
     except FileNotFoundError as e:
-        return [], [e]
-    unexplored = [os.sep.join([rootname, name]) for name in rootdir]
+        return ([], [e])
     
-    # Search subfolders and group chart/ini files by their parent folder
-    # {dirname: [chartfile, inifile, dirname]}
+    # Fill out chart files found in a given folder, not necessarily in order
     found_by_dirname = {}
     errors = []
+    visited = set()
     while unexplored:
-        f = unexplored.pop()
-        dir = os.path.dirname(f)
+        f, origin = unexplored.pop()
         
         if os.path.isfile(f):
-            # Handle a file - chartfile or inifile
             if f.endswith(".mid") or f.endswith(".chart"):
-                try:
-                    # Add to entry for this dir
-                    found_by_dirname[dir][0] = f
-                except KeyError:
-                    # Create new entry for this dir
-                    found_by_dirname[dir] = [f, None, dir]
-                    if cb_progress:
-                        cb_progress(len(found_by_dirname))
+                i = 0
             elif f.endswith("song.ini"):
-                try:
-                    # Add to entry for this dir
-                    found_by_dirname[dir][1] = f
-                except KeyError:
-                    # Create new entry for this dir
-                    found_by_dirname[dir] = [None, f, dir]
-                    if cb_progress:
-                        cb_progress(len(found_by_dirname))
+                i = 1
+            else:
+                continue
+                
+            dir = os.path.dirname(f)
+            if dir not in found_by_dirname:
+                found_by_dirname[dir] = [
+                    None, None,
+                    dir, os.path.relpath(pathlib.Path(dir).parent, origin)
+                ]
+            found_by_dirname[dir][i] = f
+        
+            if cb_progress:
+                cb_progress(len(found_by_dirname))
         else:
             # Handle a folder - add subfolders to the search
             try:
@@ -63,12 +58,18 @@ def discover_charts(rootname, cb_progress=None):
                 continue
                 
             for subname in subnames:
-                unexplored.append(os.sep.join([f, subname]))
-            
-    return ([tuple(info) for info in found_by_dirname.values() if all(info)], errors)
+                subpath = os.sep.join([f, subname])
+                if subpath not in visited:
+                    visited.add(subpath)
+                    unexplored.append((subpath, origin))
+    
+    return (
+        [tuple(info) for info in found_by_dirname.values() if all(info)],
+        errors
+    )
 
 
-def get_rowvalues(chartfile, inifile, path, rootfolder):
+def get_rowvalues(chartfile, inifile, path, subfolders):
     config = configparser.ConfigParser(
         strict=False, allow_no_value=True, interpolation=None
     )
@@ -86,8 +87,7 @@ def get_rowvalues(chartfile, inifile, path, rootfolder):
     elif 'song' in config:
         metadata = config['song']
     else:
-        errorpath = os.path.relpath(inifile, rootfolder)
-        raise hymisc.ChartFileError(f"Invalid ini format: {errorpath}")
+        raise hymisc.ChartFileError(f"Invalid ini format: {inifile}")
     
     # Hash the chart file
     with open(chartfile, 'rb') as f:
@@ -109,8 +109,7 @@ def get_rowvalues(chartfile, inifile, path, rootfolder):
     except KeyError:
         charter = "<unknown charter>"
 
-    folder = os.path.relpath(pathlib.Path(path).parent, rootfolder)
-    return (hyhash, name, artist, charter, path, folder)
+    return (hyhash, name, artist, charter, path, subfolders)
 
 def analyze_chart(
     filepath,
