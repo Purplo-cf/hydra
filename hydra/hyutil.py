@@ -69,6 +69,16 @@ def discover_charts(rootfolders, cb_progress=None):
     )
 
 
+def get_folder_chart(folder):
+    """Non-recursive lookup for a chart file in the given folder."""
+    for f in os.listdir(folder):
+        filepath = os.path.join(folder, f)
+        
+        if os.path.isfile(filepath):
+            if filepath.endswith(".mid") or filepath.endswith(".chart"):
+                return filepath
+    return None
+
 def get_rowvalues(chartfile, inifile, path, subfolders):
     config = configparser.ConfigParser(
         strict=False, allow_no_value=True, interpolation=None

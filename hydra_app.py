@@ -470,7 +470,7 @@ def on_run_chart(sender, app_data, user_data):
     reset_analyze_modal()
     # run chart
     try:
-        chartfile = hyutil.discover_charts(appstate.selected_song_row[4])[0][0][0]
+        chartfile = hyutil.get_folder_chart(appstate.selected_song_row[4])
         record = hyutil.analyze_chart(
             chartfile,
             appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
@@ -728,7 +728,7 @@ def refresh_songdetails():
     
     # Enable / Disable analyze button (everything else can work off of
     # saved data, but analysis requires the chart to be here immediately)
-    if hyutil.discover_charts(appstate.selected_song_row[4])[0]:
+    if hyutil.get_folder_chart(appstate.selected_song_row[4]):
         dpg.configure_item("runbutton", enabled=True, label="Analyze paths!")
     else:
         dpg.configure_item("runbutton", enabled=False, label="Song file not found.\nTry scanning again.")
