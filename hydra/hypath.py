@@ -348,13 +348,24 @@ class ScoreGraphEdge:
         return f" --> {self.dest.name()}, frontend = {self.frontend}"
         
     def can_deact(self, sp_end_time):
-        if self.dest.timecode != sp_end_time:
-            if self.sqinout_indicator_time == sp_end_time:
-                return (True, True)
-            else:
-                return (False, None)
-        return (True, False)
-    
+        """Whether this deact edge really can deact for the given path's
+        sp end time, i.e. the path's sp ends at this edge.
+        
+        Deact edges know the length of SqIn extensions at their point, if any,
+        so if an sp end time doesn't match the edge's time but matches the
+        extension time, this function returns an indication that the deact
+        is possible via SqOut.
+        
+        """
+        if self.dest.timecode == sp_end_time:
+            return (True, False)
+        
+        if self.sqinout_indicator_time == sp_end_time:
+            return (True, True)
+        
+        return (False, None)
+
+
 class GraphPather:
     """Responsible for creating multiple paths and for creating records.
     
@@ -701,8 +712,8 @@ class GraphPath:
         new_path.data.activations[-1].backends = br_edge.backends
         
         if sq_out:
-            new_path.data.activations[-1].sqinouts.append('-')
-            self.data.activations[-1].sqinouts.append('+')
+            new_path.data.activations[-1].sqinouts.append(hydata.SqOut(br_edge.sqinout_timing))
+            self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
             
             # Adjust sq-out scoring (basically an altered backend calculation)
             # When a backend is after the sq-out chord but before current, it's been already counted, so it needs to be subtracted.
@@ -724,8 +735,8 @@ class GraphPath:
 
             # SqIn may be possible, which would save self from being removed imminently
             if br_edge.sqinout_time:
-                new_path.data.activations[-1].sqinouts.append('-')
-                self.data.activations[-1].sqinouts.append('+')
+                new_path.data.activations[-1].sqinouts.append(hydata.SqOut(br_edge.sqinout_timing))
+                self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
                 # self got here by being at its sp end time, but now it can be extended.
                 self.sp_end_time = br_edge.sqinout_indicator_time
                 self.buffered_sqin_sp = 1

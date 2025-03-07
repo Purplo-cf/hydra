@@ -1,5 +1,6 @@
 import json
 from enum import Enum
+from abc import ABC, abstractmethod
 
 from . import hymisc
 
@@ -64,6 +65,20 @@ def json_save(obj):
         
             'chord': obj.chord,
             'points': obj.points,
+        }
+        
+    if isinstance(obj, SqIn):
+        return {
+            '__obj__': 'sqin',
+            
+            'offset_ms': obj.offset
+        }
+        
+    if isinstance(obj, SqOut):
+        return {
+            '__obj__': 'sqout',
+            
+            'offset_ms': obj.offset
         }
     
     if isinstance(obj, BackendSqueeze):
@@ -198,6 +213,16 @@ def json_load(_dict):
 
             return o
         
+        if obj_code == 'sqin':
+            o = SqIn(_dict['offset_ms'])
+
+            return o
+            
+        if obj_code == 'sqout':
+            o = SqOut(_dict['offset_ms'])
+
+            return o
+            
         if obj_code == 'bsq':
             o = BackendSqueeze(
                 _dict['timecode'],
@@ -290,7 +315,13 @@ class HydraRecord:
 
 
 class Path:
+    """A particular combination of SP activations that was found during
+    analysis as well as the simulated score for a run that does these
+    activations.
     
+    Mult squeezes are also stored here; their point values are technically
+    path dependent.
+    """
     def __init__(self):
         # Path characteristics
         self.multsqueezes = []
@@ -364,6 +395,15 @@ class Path:
         c.notecount = self.notecount
         
         return c
+        
+    def difficulty(self):
+        d_gen = (act.difficulty() for act in self.activations)
+        diffs = [d for d in d_gen if d is not None]
+        
+        return max(diffs) if diffs else None
+        
+    def is_difficult(self):
+        return any(act.is_difficult() for act in self.activations)
 
 class Activation:
     
@@ -398,10 +438,13 @@ class Activation:
         
     def notationstr(self):
         e = 'E' if self.is_e_critical() else ''
-        return f"{e}{self.skips}{''.join(self.sqinouts)}"
+        return f"{e}{self.skips}{''.join(sq.symbol for sq in self.sqinouts)}"
     
     def is_e_critical(self):
-        return self.e_offset < 70 
+        return self.e_offset < 70
+        
+    def is_E0(self):
+        return self.is_e_critical() and self.skips == 0
         
     def copy(self):
         c = Activation()
@@ -420,6 +463,22 @@ class Activation:
         
         return c
 
+    def e_difficulty(self):
+        if self.is_E0():
+            return -self.e_offset + 0.0
+        return None
+        
+    def difficulty(self):
+        diffs = [sq.difficulty for sq in self.sqinouts]
+        if (e_diff := self.e_difficulty()) is not None:
+            diffs.append(e_diff)
+        return max(diffs) if diffs else None
+
+    def is_difficult(self):
+        if (e_diff := self.e_difficulty()) is not None and e_diff > 2.0:
+            return True
+        
+        return any(sq.is_difficult for sq in self.sqinouts)
 
 class MultSqueeze:
     """Multiplier squeeze: When the combo multiplier goes up partway through a
@@ -461,6 +520,93 @@ class FrontendSqueeze:
         return True
         
 
+
+class SPSqueeze(ABC):
+    """Star Power squeeze, i.e. a SqIn (+) or SqOut (-).
+    
+    This is mainly a container for the squeeze's notation and the
+    different ways to interpret its millisecond value.
+    
+    """
+    def __init__(self, offset_ms):
+        self._offset_ms = offset_ms
+    
+    def __eq__(self, other):
+        return self.offset == other.offset
+    
+    @property
+    def offset(self):
+        """Offset from the end of SP to the note, in milliseconds.
+        
+        Negative offsets are before the end of SP and easy to SqIn.
+        Positive offsets are after the end of SP and easy to SqOut.
+        """
+        return self._offset_ms
+
+    @property
+    def timing(self):
+        """The timing threshold for the note, equal to -offset.
+        
+        Hitting earlier than this timing results in a SqIn,
+        hitting later results in a SqOut.
+        """
+        return -self.offset + 0.0
+        
+    @property
+    @abstractmethod
+    def difficulty(self):
+        """The millisecond value, with sign flipped to ensure that larger
+        values mean the squeeze is harder to pull off.
+        
+        Positive values mean the note's timing has to be pushed that far
+        early/late to get the squeeze.
+        
+        Negative values mean the note's timing would have to be that far
+        in the wrong direction to miss the squeeze.
+        """
+        pass
+        
+    @property
+    @abstractmethod
+    def symbol(self):
+        """The symbol for this squeeze."""
+        pass
+        
+    @property
+    @abstractmethod
+    def description(self):
+        pass
+        
+    @property
+    def is_difficult(self):
+        return self.difficulty > 2.0
+    
+class SqIn(SPSqueeze):
+    @property
+    def difficulty(self):
+        return self.offset
+    
+    @property
+    def symbol(self):
+        return '+'
+        
+    @property
+    def description(self):
+        return f"SqIn: Note timing must be earlier than {self.timing:.1f}ms."
+    
+class SqOut(SPSqueeze):
+    @property
+    def difficulty(self):
+        return -self.offset + 0.0
+        
+    @property
+    def symbol(self):
+        return '-'
+        
+    @property
+    def description(self):
+        return f"SqOut: Note timing must be later than {self.timing:.1f}ms."
+    
 
 class BackendSqueeze:
     def __init__(self, timecode, chord, points, sqout_points, is_sp):

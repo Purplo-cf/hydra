@@ -408,12 +408,32 @@ def on_path_selected(sender, app_data, record):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
         if record.activations:
             for act in record.activations:
-                with dpg.tree_node(label=f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}", default_open=False, indent=4):
+                act_header = f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}"
+                if (act_ms := act.difficulty()) is not None:
+                    act_header += f"\t{act_ms:7.1f}ms"
+                with dpg.tree_node(label=act_header, default_open=False, indent=4):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
+                    if act.is_difficult():
+                        dpg.bind_item_theme(dpg.last_item(), "warning_theme")
                     with dpg.group(indent=12):
+                        dpg.bind_item_theme(dpg.last_item(), "default_theme")
+                        
+                        # E
                         if act.is_e_critical():
-                            dpg.add_text(f"Calibration fill: {act.e_offset:.2f}ms")
+                            cftext = f"Calibration fill: {-act.e_offset + 0.0:.1f}ms"
+                            cftext += " (required)" if act.is_E0() else " (optional)"
+                            dpg.add_text(cftext)
+                        
+                        # Frontend
                         dpg.add_text(f"Frontend: {act.frontend.chord.rowstr() if act.frontend is not None else "None"}")
+                        
+                        # SP squeezes
+                        for sq in act.sqinouts:
+                            dpg.add_text(sq.description)
+                            if sq.is_difficult:
+                                dpg.bind_item_theme(dpg.last_item(), "warning_theme")
+                        
+                        # Backends
                         if act.backends:
                             dpg.add_text("Backends:")
                             
@@ -756,24 +776,49 @@ def refresh_songdetails():
     dpg.show_item("songdetails_pathdivider")
     dpg.hide_item("songdetails_nopathsyet")
     dpg.hide_item("songdetails_plsupdaterecord")
-        
+    
     # Rebuild path list
     
     dpg.delete_item("songdetails_pathpanel", children_only=True)
     appstate.current_path_selectable = None
-        
+    
     current_score = None 
     current_treenode = None
+    
+    with dpg.table(parent="songdetails_pathpanel", header_row=False):
+        dpg.add_table_column()
+        dpg.add_table_column(width_fixed=True, init_width_or_weight=140)
+        with dpg.table_row():
+            dpg.add_spacer(height=0)
+            dpg.add_text("Hardest +/-/E", tag="hardestsqueeze_label")
+            dpg.bind_item_font(dpg.last_item(), "MonoFont")
+    
+    any_difficulty_displayed = False
     for i, p in enumerate(viewed_record.paths):
         if current_score != p.totalscore():
             current_score = p.totalscore()
             current_treenode = dpg.add_tree_node(label=f"{current_score:,}", parent="songdetails_pathpanel", default_open=True)
             dpg.bind_item_font(current_treenode, "MonoFont")
         
-        pathselectable = dpg.add_selectable(label=p.pathstring(), parent=current_treenode, callback=on_path_selected, user_data=p, default_value=i==0, indent=16)
+        with dpg.table(parent=current_treenode, header_row=False):
+            dpg.add_table_column()
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=120)
+            with dpg.table_row():
+                pathselectable = dpg.add_selectable(label=p.pathstring(), callback=on_path_selected, user_data=p, default_value=i==0, indent=16, span_columns=True)
+                
+                if (diff := p.difficulty()) is not None:
+                    dpg.add_selectable(label=f"{diff:9.1f}ms", callback=on_path_selected, user_data=p, default_value=False)
+                    any_difficulty_displayed = True
+                    if p.is_difficult():
+                        dpg.bind_item_theme(dpg.last_item(), "warning_theme")
+                
+
         if i == 0:
             autoselect = pathselectable
         
+    if not any_difficulty_displayed:
+        dpg.configure_item("hardestsqueeze_label", show=False)
+    
     # Auto select the first path
     on_path_selected(autoselect, True, viewed_record.paths[0])
 
@@ -818,7 +863,7 @@ def build_main_ui():
     dpg.bind_font("MainFont")
     
     # Theme
-    with dpg.theme() as standard_theme:
+    with dpg.theme(tag="default_theme") as standard_theme:
         with dpg.theme_component(dpg.mvButton, enabled_state=True):
             dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 150, 150))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
@@ -841,6 +886,8 @@ def build_main_ui():
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
             dpg.add_theme_color(dpg.mvThemeCol_PlotHistogram, (0, 200, 200))
+            
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (250, 250, 250))
     
     with dpg.theme(tag="bestpath_theme"):
         with dpg.theme_component(dpg.mvAll):
