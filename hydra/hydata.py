@@ -29,6 +29,10 @@ def json_save(obj):
             'score_accents': obj.score_accents,
             'score_ghosts': obj.score_ghosts,
             
+            'notecount': obj.notecount,
+            
+            'leftover_sp': obj.leftover_sp,
+            
             'ref_totalscore': obj.totalscore(),
         }
     
@@ -180,6 +184,10 @@ def json_load(_dict):
             o.score_solo = _dict['score_solo']
             o.score_accents = _dict['score_accents']
             o.score_ghosts = _dict['score_ghosts']
+            
+            o.notecount = _dict['notecount']
+            
+            o.leftover_sp = _dict['leftover_sp']
             
             return o
         
@@ -336,6 +344,8 @@ class Path:
         self.score_ghosts = 0
         
         self.notecount = 0
+        
+        self.leftover_sp = 0
    
     def __eq__(self, other):
         for listattr in ['multsqueezes', 'activations']:
@@ -349,7 +359,7 @@ class Path:
         
         for attr in [
             'score_base', 'score_combo', 'score_sp', 'score_solo',
-            'score_accents', 'score_ghosts', 'notecount'
+            'score_accents', 'score_ghosts', 'notecount', 'leftover_sp'
         ]:
             if getattr(self, attr) != getattr(other, attr):
                 return False
@@ -393,6 +403,8 @@ class Path:
         c.score_ghosts = self.score_ghosts
         
         c.notecount = self.notecount
+        
+        c.leftover_sp = self.leftover_sp
         
         return c
         

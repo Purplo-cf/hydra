@@ -414,6 +414,7 @@ class GraphPather:
         # Expand variant paths
         restored_paths = []
         for p in paths:
+            p.data.leftover_sp = p.sp
             p.copy_to_variants()
             restored_paths += [v for v, _ in p.variants]
       
@@ -574,7 +575,7 @@ class GraphPath:
         for v, a in self.variants:
             restored = v
             restored.data.activations += self.data.activations[a:]
-            for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts']:
+            for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts', 'notecount', 'leftover_sp']:
                 setattr(restored.data, attr, getattr(self.data, attr))
     
     # Develop along the edge that leads farther into the song.

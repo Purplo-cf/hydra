@@ -373,7 +373,7 @@ def on_library_rowclick(sender, app_data, user_data):
     appstate.selected_song_row = user_data
     view_showsongdetails()
 
-def on_path_selected(sender, app_data, record):
+def on_path_selected(sender, app_data, path):
     """
     
     user_data: HyRecordPath.
@@ -395,8 +395,8 @@ def on_path_selected(sender, app_data, record):
     
     with dpg.tree_node(label="Multiplier squeezes", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        if record.multsqueezes:
-            for msq in record.multsqueezes:
+        if path.multsqueezes:
+            for msq in path.multsqueezes:
                 with dpg.tree_node(label=f"{msq.notationstr()}  {msq.chord.rowstr()}", default_open=False):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
                     dpg.add_text(f"Hit {msq.squeezecount} high-value note{'' if msq.squeezecount == 1 else 's'} last for +{msq.points}.")
@@ -406,8 +406,8 @@ def on_path_selected(sender, app_data, record):
         
     with dpg.tree_node(label="Activations", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        if record.activations:
-            for act in record.activations:
+        if path.activations:
+            for act in path.activations:
                 act_header = f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}"
                 if (act_ms := act.difficulty()) is not None:
                     act_header += f"\t{act_ms:7.1f}ms"
@@ -453,24 +453,29 @@ def on_path_selected(sender, app_data, record):
         else:
             dpg.add_text("None.")
             dpg.bind_item_font(dpg.last_item(), "MonoFont")
+            
+        # Regardless of what activations were displayed, leftover SP is 
+        # a possibility.
+        dpg.add_text(f"Leftover SP: {path.leftover_sp}.")
+        dpg.bind_item_font(dpg.last_item(), "MonoFont")
     
     with dpg.tree_node(label="Score breakdown", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        dpg.add_text(f"Avg. Multiplier:      {(str(record.avg_mult()) + "000")[:5]}x")
+        dpg.add_text(f"Avg. Multiplier:      {(str(path.avg_mult()) + "000")[:5]}x")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"\nNotes:            {record.score_base: >10,}")
+        dpg.add_text(f"\nNotes:            {path.score_base: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Combo Bonus:      {record.score_combo: >10,}")
+        dpg.add_text(f"Combo Bonus:      {path.score_combo: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Star Power:       {record.score_sp: >10,}")
+        dpg.add_text(f"Star Power:       {path.score_sp: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Solo Bonus:       {record.score_solo: >10,}")
+        dpg.add_text(f"Solo Bonus:       {path.score_solo: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Accent Notes:     {record.score_accents: >10,}")
+        dpg.add_text(f"Accent Notes:     {path.score_accents: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"Ghost Notes:      {record.score_ghosts: >10,}")
+        dpg.add_text(f"Ghost Notes:      {path.score_ghosts: >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
-        dpg.add_text(f"\nTotal Score:      {record.totalscore(): >10,}")
+        dpg.add_text(f"\nTotal Score:      {path.totalscore(): >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
 
 def on_pageleft(sender, app_data):
