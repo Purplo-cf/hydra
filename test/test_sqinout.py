@@ -69,21 +69,22 @@ class TestSqinout(unittest.TestCase):
             2150, 3600, 4200, 0, 0, 0, 9950
         )
 
-    # def test_sqout_early(self):
-        # """If a SqOut requires the SP window to be fudged early, it becomes
-        # more complicated to figure out which backends are possible. This test
-        # is failing because even though the SP note is being squeezed out, the
-        # regular backend right after it is still POSSIBLY capable of being
-        # squeezed in.
+    @unittest.expectedFailure
+    def test_sqout_early(self):
+        """If a SqOut requires the SP window to be fudged early, it becomes
+        more complicated to figure out which backends are possible. This test
+        is failing because even though the SP note is being squeezed out, the
+        regular backend right after it is still POSSIBLY capable of being
+        squeezed in.
         
-        # There is a whole class of "plus or minus 1 backend" accuracy errors
-        # related to complex backend setups, so this test is disabled for now
-        # until that topic is tackled as a whole...
-        # """
-        # self._test_scoring(
-            # "sqout_early.chart",
-            # 2200, 3750, 4500, 0, 0, 0, 10450
-        # )
+        There is a whole class of "plus or minus 1 backend" accuracy errors
+        related to complex backend setups, so this test is disabled for now
+        until that topic is tackled as a whole...
+        """
+        self._test_scoring(
+            "sqout_early.chart",
+            2200, 3750, 4500, 0, 0, 0, 10450
+        )
         
     def test_sqout_early_emptydeact(self):
         self._test_scoring(

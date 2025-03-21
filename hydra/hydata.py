@@ -1,4 +1,5 @@
 import json
+import re
 from enum import Enum
 from abc import ABC, abstractmethod
 
@@ -40,10 +41,8 @@ def json_save(obj):
         return {
             '__obj__': 'msq',
         
-            'multiplier': obj.multiplier,
             'chord': obj.chord,
-            'squeezecount': obj.squeezecount,
-            'points': obj.points,
+            'combo': obj.combo,
         }
     
     if isinstance(obj, Activation):
@@ -112,6 +111,7 @@ def json_save(obj):
         return {
             '__obj__': 'note',
         
+            'colorname': obj.colortype.name,
             'dynamic': obj.dynamictype,
             'cymbal': obj.cymbaltype,
             'is_2x': obj.is2x,
@@ -145,7 +145,7 @@ def json_save(obj):
             'ref_measure': obj.measurestr(),
         }
     
-    raise TypeError(f"Unhanded type: {type(obj)}")
+    raise TypeError(f"Unhandled type: {type(obj)}")
     
 def json_load(_dict):
     """JSON has loaded a dict; try to fit it to Hydra data types.
@@ -192,11 +192,7 @@ def json_load(_dict):
             return o
         
         if obj_code == 'msq':
-            o = MultSqueeze()
-            o.multiplier = _dict['multiplier']
-            o.chord = _dict['chord']
-            o.squeezecount = _dict['squeezecount']
-            o.points = _dict['points']
+            o = MultSqueeze(_dict['chord'], _dict['combo'])
             
             return o
         
@@ -253,14 +249,10 @@ def json_load(_dict):
                 NoteColor.GREEN: _dict['green'],
             }
             
-            for c, note in o.notemap.items():
-                if note:
-                    note.colortype = c
-            
             return o
         
         if obj_code == 'note':
-            o = ChordNote()
+            o = ChordNote(NoteColor[_dict['colorname']])
             
             o.cymbaltype = {
                 'normal': NoteCymbalType.NORMAL,
@@ -500,22 +492,93 @@ class MultSqueeze:
     This usually results in +15s for cymbal squeezes or +50s for dynamic
     squeezes.
     """
-    def __init__(self):
-        self.multiplier = None
-        self.chord = None
-        self.squeezecount = None
-        self.points = None
-        
-    def __eq__(self, other):
-        for attr in ['multiplier', 'chord', 'squeezecount', 'points']:
-            if getattr(self, attr) != getattr(other, attr):
-                return False
-                
-        return True
+    def __init__(self, chord, combo):
+        """Raises ValueError if the given chord + combo is not a situation
+        where a multiplier squeeze is possible."""
+        self.chord = chord
+        self.combo = combo
 
+        self._validate()
+
+    def _validate(self):
+        if self.combo not in [7, 8, 17, 18, 27, 28]:
+            raise ValueError(f"Invalid MultSqueeze combo: {self.combo}")
+        
+        if (self.chord.count() + self.combo) % 10 not in [0, 1]:
+            raise ValueError(f"Invalid MultSqueeze chord length {self.chord.count()} at combo={self.combo}")
+        
+        notes = self.chord.notes()
+        if all(n.basescore() == notes[0].basescore() for n in notes):
+            raise ValueError(f"MultSqueeze chord has no squeezable note values: {self.chord}")
+    
+    @property
+    def multiplier(self):
+        return hymisc.to_multiplier(self.combo) + 1
+    
+    @property
+    def direction(self):
+        """Depending on combo, mult squeezes are either best described as
+        "hit X note first" or "hit X note last", i.e. focusing on a single 
+        note.
+        """
+        if self.combo % 10 == 7:
+            # One note is high
+            return 'high'
+        else:
+            # One note is low
+            return 'low'
+    
+    @property
+    def points(self):
+        noteorder = self.chord.notes(basesorted=True)
+            
+        return noteorder[-1].basescore() - noteorder[0].basescore()
+    
+    def __eq__(self, other):
+        return self.chord == other.chord and self.combo == other.combo
     
     def notationstr(self):
         return f"{self.multiplier}x"
+
+    @property
+    def guide_chords(self):
+        """Every pair of chords that add up to this squeeze's chord,
+        where hitting the chords separately in that order results in executing
+        the squeeze.
+        
+        For 2-note chords the guide chords are simply one note then the other.
+        For 3-note chords the guide chords depend on note values and there may
+        be two options.
+        """
+        notes = self.chord.notes(basesorted=True)
+        if self.direction == 'high':
+            edge_score = notes[-1].basescore() 
+        else:
+            edge_score = notes[0].basescore()
+        edge_options = (note for note in notes if note.basescore() == edge_score)
+        pairs = []
+        for chosen_edge in edge_options:
+            edge = Chord()
+            edge[chosen_edge.colortype] = chosen_edge
+            
+            nonedge = Chord()
+            for note in notes:
+                if note != chosen_edge:
+                    nonedge[note.colortype] = note
+                
+            if self.direction == 'high':
+                pairs.append((nonedge, edge))
+            else:
+                pairs.append((edge, nonedge))
+        
+        return pairs
+
+    @property
+    def howto(self):
+        i = 1 if self.direction == 'high' else 0
+        when = "last" if self.direction == 'high' else "first"
+        
+        return f"Hit {' or '.join(c[i].rowstr() for c in self.guide_chords)} {when}."
 
 
 class FrontendSqueeze:
@@ -674,6 +737,14 @@ class NoteColor(Enum):
     BLUE = 4
     GREEN = 5
     
+    def code_pattern(self):
+        """How to find this color's note in a code, e.g. 'KRb+'."""
+        N = self.notationstr()
+        cym = f"|(?P<cym>{N.lower()})" if self.allows_cymbals() else ""
+        dyn = r"((?P<acc>\+)|(?P<gho>-))?" if self.allows_dynamics() else ""
+        
+        return rf"({N}{cym}){dyn}"
+    
     def allows_cymbals(self):
         return self in [
             NoteColor.YELLOW,
@@ -742,13 +813,39 @@ class NoteCymbalType(Enum):
 class ChordNote:
     """Representation of a note from a chart."""
 
-    def __init__(self):
-        self.colortype = None
-        self.dynamictype = NoteDynamicType.NORMAL
-        self.cymbaltype = NoteCymbalType.NORMAL
-        self.is2x = False
-    
+    def __init__(
+        self,
+        colortype, 
+        dynamictype=NoteDynamicType.NORMAL, 
+        cymbaltype=NoteCymbalType.NORMAL, 
+        is2x=False,
+        code=None
+    ):
+        assert(colortype is not None)
+        self.colortype = colortype
+        self.dynamictype = dynamictype
+        self.cymbaltype = cymbaltype
+            
+        if code is not None:
+            match = re.search(self.colortype.code_pattern(), code)
+            if not match:
+                raise ValueError(f"ChordNote code init failed.")
+            
+            if 'acc' in match.groupdict() and match['acc']:
+                self.dynamictype = NoteDynamicType.ACCENT
+            
+            if 'gho' in match.groupdict() and match['gho']:
+                self.dynamictype = NoteDynamicType.GHOST
+                
+            if 'cym' in match.groupdict() and match['cym']:
+                self.cymbaltype = NoteCymbalType.CYMBAL
+        
+        self.is2x = is2x
+
     def __eq__(self, other):
+        if other is None:
+            return False
+                
         for attr in ['colortype', 'dynamictype', 'cymbaltype', 'is2x']:
             if getattr(self, attr) != getattr(other, attr):
                 return False
@@ -800,7 +897,7 @@ class ChordNote:
 class Chord:
     """Representation of a chord which has 1 note (or None) for each color."""
     
-    def __init__(self):
+    def __init__(self, code=None):
         self.notemap = {
             NoteColor.KICK: None,
             NoteColor.RED: None,
@@ -808,7 +905,24 @@ class Chord:
             NoteColor.BLUE: None,
             NoteColor.GREEN: None
         }
+        
+        if code is not None:
+            """Quickly build a chord from a shorthand string form.
+        
+            Searches for the following note letters: KRYBG
+            To apply cymbal: Replace with lowercase letter.
+            To apply accent: Add '+' after letter.
+            To apply ghost: Add '-' after letter.
+            """
+            for color in NoteColor:
+                try:
+                    self[color] = ChordNote(color, code=code)
+                except ValueError:
+                    pass
     
+    def __repr__(self):
+        return self.rowstr()
+        
     def __eq__(self, other):
         for color in self.notemap.keys():
             if self[color] != other[color]:
@@ -867,8 +981,7 @@ class Chord:
     def add_note(self, color):
         if self[color] is not None:
             raise hymisc.ChartFileError("Duplicate note.")
-        note = ChordNote()
-        note.colortype = color
+        note = ChordNote(color)
         self[color] = note
         return note
     

@@ -9,17 +9,6 @@ from . import hydata
 from . import hymisc
 
 
-def to_multiplier(combo):
-    if combo < 10:
-        return 1
-    elif combo < 20:
-        return 2
-    elif combo < 30:
-        return 3
-    else:
-        return 4
-    
-
 class ScoreGraph:
     """Description of a song in terms of pathing choices and outcomes.
     
@@ -77,8 +66,11 @@ class ScoreGraph:
             
             score_groups = category_scores(timestamp.chord, self._combo)
             
-            if pts := score_groups['msq_points']:
-                self.store_multsqueeze(timestamp.chord, pts)
+            try:
+                msq = hydata.MultSqueeze(timestamp.chord, self._combo)
+                self.store_multsqueeze(msq)
+            except ValueError:
+                pass
             
             self.store_basescore(score_groups['base'])
             self.store_comboscore(score_groups['combo'])
@@ -149,12 +141,7 @@ class ScoreGraph:
         self._proto_base_edge.ghostscore += points
         self._proto_sp_edge.ghostscore += points
         
-    def store_multsqueeze(self, chord, points):
-        msq = hydata.MultSqueeze()
-        msq.multiplier = to_multiplier(self._combo) + 1
-        msq.chord = chord
-        msq.points = points
-        msq.squeezecount = (self._combo + chord.count()) % 10 + 1
+    def store_multsqueeze(self, msq):
         self._proto_base_edge.multsqueezes.append(msq)
         self._proto_sp_edge.multsqueezes.append(msq)
     
@@ -790,15 +777,12 @@ def category_scores(chord, combo):
     # How many points to subtract if this chord is a SqOut
     sqout_reduction = 0
     
-    # How many points depend on doing a multiplier squeeze correctly
-    msq_points = 0
-    
     ordering = chord.notes(basesorted=True)
-    initial_combo_mult = to_multiplier(combo)
+    initial_combo_mult = hymisc.to_multiplier(combo)
     
     for i,note in enumerate(ordering):
         combo += 1
-        combo_multiplier = to_multiplier(combo)
+        combo_multiplier = hymisc.to_multiplier(combo)
         
         basevalue = 50
         cymbvalue = 15
@@ -821,13 +805,6 @@ def category_scores(chord, combo):
         points_by_source['combospdynamic_note'] += basevalue * (combo_multiplier - 1) if note.is_dynamic() else 0
         points_by_source['combospdynamic_cymbal'] += cymbvalue * (combo_multiplier - 1) if note.is_cymbal() and note.is_dynamic() else 0
         
-        # Quick and dirty multiplier squeeze calculation
-        if combo_multiplier > initial_combo_mult:
-            worse_note = ordering[len(ordering) - 1 - i]
-            better_notescore = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * (2 if note.is_dynamic() else 1)
-            worse_notescore = (basevalue + (cymbvalue if worse_note.is_cymbal() else 0)) * (2 if worse_note.is_dynamic() else 1)
-            msq_points += better_notescore - worse_notescore
-            
         # Quick and dirty SqOut calculation
         if i == 0:
             sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
@@ -838,7 +815,6 @@ def category_scores(chord, combo):
         'sp': points_by_source['sp_note'] + points_by_source['sp_cymbal'] + points_by_source['combosp_note'] + points_by_source['combosp_cymbal'] + points_by_source['spdynamic_note'] + points_by_source['spdynamic_cymbal'] + points_by_source['combospdynamic_note'] + points_by_source['combospdynamic_cymbal'],
         'accent': points_by_source['dynamic_note_accent'],
         'ghost': points_by_source['dynamic_note_ghost'],
-        'sqout_reduction': sqout_reduction, 
-        'msq_points': msq_points,
+        'sqout_reduction': sqout_reduction,
     }
     

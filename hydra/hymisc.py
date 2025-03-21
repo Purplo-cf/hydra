@@ -230,3 +230,13 @@ class Timecode:
         # Now that we have the right tpm, convert the partial measure to ticks
         partial = int(targetpartial * current_tpm)
         return Timecode(handled_ticks + partial, song)
+
+def to_multiplier(combo):
+    if combo < 10:
+        return 1
+    elif combo < 20:
+        return 2
+    elif combo < 30:
+        return 3
+    else:
+        return 4

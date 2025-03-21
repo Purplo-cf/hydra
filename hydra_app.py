@@ -397,9 +397,11 @@ def on_path_selected(sender, app_data, path):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
         if path.multsqueezes:
             for msq in path.multsqueezes:
-                with dpg.tree_node(label=f"{msq.notationstr()}  {msq.chord.rowstr()}", default_open=False):
+                with dpg.tree_node(label=f"{msq.notationstr()}   (+{msq.points} pts):   {msq.chord.rowstr()}", default_open=False):
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
-                    dpg.add_text(f"Hit {msq.squeezecount} high-value note{'' if msq.squeezecount == 1 else 's'} last for +{msq.points}.")
+                    dpg.add_text(msq.howto)
+                    dpg.bind_item_font(dpg.last_item(), "MainFont24")
+                    dpg.add_spacer(height=8)
         else:
             dpg.add_text("None.")
             dpg.bind_item_font(dpg.last_item(), "MonoFont")
