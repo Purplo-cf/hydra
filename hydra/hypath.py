@@ -167,13 +167,8 @@ class ScoreGraph:
                 # If there are more than 1, it's probably a charting error, but ya know
                 recent_edge.sqinout_time = timestamp.timecode
                 recent_edge.sqinout_timing = offset_ms
-                
-                # An SP timestamp already refreshes deact times,
-                # but in the case of recent edges, their deact time was
-                # already handled, so we need to reintroduce it.
-                #self._pending_deacts.add()
-                
-                recent_edge.sqinout_indicator_time = recent_edge.sqinout_indicator_time.plusmeasure(2, self.song)
+                recent_edge.late_sqin_count += 1
+                recent_edge.sqin_time = recent_edge.sqin_time.plusmeasure(2, self.song)
         
     def head_time_offset(self, timecode):
         return self._head_time.ms - timecode.ms
@@ -245,7 +240,8 @@ class ScoreGraph:
         deact_edge.accentscore = 0
         deact_edge.ghostscore = 0
         
-        deact_edge.sqinout_indicator_time = deact_edge.dest.timecode
+        deact_edge.sqout_time = deact_edge.dest.timecode
+        deact_edge.sqin_time = deact_edge.dest.timecode
         
         # notes just prior to this deactivation, which are normally in sp but could be squeezed out
         for recent_backend in self._recent_backends:
@@ -256,7 +252,8 @@ class ScoreGraph:
             if recent_backend.is_sp and not deact_edge.sqinout_time:
                 deact_edge.sqinout_time = recent_backend.timecode
                 deact_edge.sqinout_timing = offset_ms
-                deact_edge.sqinout_indicator_time = deact_edge.sqinout_indicator_time.plusmeasure(2, self.song)
+                deact_edge.sqout_time = deact_edge.sqout_time.plusmeasure(2, self.song)
+                deact_edge.sqin_time = deact_edge.sqin_time.plusmeasure(2, self.song)
                 
         self._recent_deact_edges.append(deact_edge)
         self._sp_track_head.branch_edge = deact_edge
@@ -329,28 +326,43 @@ class ScoreGraphEdge:
         
         self.sqinout_time = None
         self.sqinout_timing = None
-        self.sqinout_indicator_time = None
+        
+        self.late_sqin_count = 0
+        self.sqout_time = None
+        self.sqin_time = None
     
     def __repr__(self):
         return f" --> {self.dest.name()}, frontend = {self.frontend}"
         
-    def can_deact(self, sp_end_time):
-        """Whether this deact edge really can deact for the given path's
-        sp end time, i.e. the path's sp ends at this edge.
+    def deactivation_type(self, sp_end_time):
+        """Which kind of deactivation is possible if this deact edge is reached
+        by a GraphPath object with the given sp end time.
         
-        Deact edges know the length of SqIn extensions at their point, if any,
-        so if an sp end time doesn't match the edge's time but matches the
-        extension time, this function returns an indication that the deact
-        is possible via SqOut.
+        This result is a function of the sp end time, the edge's time,
+        the edge's early SP backends (already applied to the incoming sp end
+        time), and the edge's late SP backends.
         
+        'none': It's not possible to deactivate here.
+        'normal': SP runs out here and the path is forced to deactivate.
+        'sqinout': 
         """
-        if self.dest.timecode == sp_end_time:
-            return (True, False)
-        
-        if self.sqinout_indicator_time == sp_end_time:
-            return (True, True)
-        
-        return (False, None)
+        if self.sqinout_time:
+            # This deact has SP on it, so if valid, the deact path will be a
+            # SqOut and the continuing path will be a SqIn.
+            if sp_end_time == self.sqout_time:
+                # end time + early SP backends == edge time + early SP backends
+                return 'sqinout'
+            else:
+                return 'none'
+        else:
+            # Normal backend, no sqin/sqouts
+            assert(sp_end_time >= self.dest.timecode)
+            if sp_end_time == self.dest.timecode:
+                # SP ends here
+                return 'normal'
+            else:
+                # SP ends later
+                return 'none'
 
 
 class GraphPather:
@@ -603,12 +615,13 @@ class GraphPath:
                 
             else:
                 # Path isn't in SP: Add SP bars
-               # print(f"\tSP: {self.sp} + {len(adv_edge.sp_times)} = {min(max(0, self.sp + len(adv_edge.sp_times)), 4)}.")
                 old_sp = self.sp
-                self.sp = min(self.sp + len(adv_edge.sp_times), 4)
+                self.sp = min(self.sp + len(adv_edge.sp_times) - self.buffered_sqin_sp, 4)
 
                 if old_sp < 2 and self.sp >= 2:
-                    self.sp_ready_time = adv_edge.sp_times[1 - old_sp][0]
+                    self.sp_ready_time = adv_edge.sp_times[1 - old_sp + self.buffered_sqin_sp][0]
+                    
+                self.buffered_sqin_sp = 0
  
             self.data.multsqueezes += adv_edge.multsqueezes
                         
@@ -668,6 +681,34 @@ class GraphPath:
     
         return new_path
         
+    def create_deactivated_path(self, is_sq_out):
+        new_path = GraphPath(parent_path=self)
+        new_path.currentnode = self.currentnode.branch_edge.dest
+        new_path.sp = 1 if is_sq_out else 0
+        
+        new_path.sp_end_time = None
+        
+        new_path.data.activations[-1].backends = self.currentnode.branch_edge.backends
+        
+        if is_sq_out:
+            new_path.data.activations[-1].sqinouts.append(hydata.SqOut(self.currentnode.branch_edge.sqinout_timing))
+        
+        # Backend scoring adjustments
+        for be in self.currentnode.branch_edge.backends:
+            if be.offset_ms > 0 and be.offset_ms < 3:
+                new_path.data.score_sp += be.points
+                
+            if is_sq_out:
+                # Undo SP scoring for backends that were already scored but are now squeezed out of SP
+                if be.timecode >= self.currentnode.branch_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
+                    new_path.data.score_sp -= be.points
+                
+                # And add back in sqout points (lol) if this is the exact sqout chord
+                if be.timecode == self.currentnode.branch_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
+                    new_path.data.score_sp += be.sqout_points
+                    
+        return new_path
+        
     def branch_deactivate(self):
         """If valid, create a new path that is a clone of this path
         except that it has used the current branch edge on the graph
@@ -676,61 +717,26 @@ class GraphPath:
         Also returns whether the path can be extended OR deactivated,
         which is not usually the case but can happen with sp phrase squeezes.
         """
-        # to do: move stuff so that you just punch in the path's sp end time
-        # and the work has already been done at this point.
-        assert(not self.is_complete())
-        
         if not (br_edge := self.currentnode.branch_edge):
             return True, None
-            
-        # Check conditions for deactivation
-        can_deact, sq_out = br_edge.can_deact(self.sp_end_time)
-        if not can_deact:
-            return True, None
         
-        new_path = GraphPath(parent_path=self)
-        new_path.currentnode = br_edge.dest
-        
-        # Deactivated paths have 0 sp, but if we're doing a sqout then 
-        # we reintroduce the bar of sp.
-        new_path.sp = 1 if sq_out else 0
-        
-        new_path.sp_end_time = None
-        
-        new_path.data.activations[-1].backends = br_edge.backends
-        
-        if sq_out:
-            new_path.data.activations[-1].sqinouts.append(hydata.SqOut(br_edge.sqinout_timing))
-            self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
-            
-            # Adjust sq-out scoring (basically an altered backend calculation)
-            # When a backend is after the sq-out chord but before current, it's been already counted, so it needs to be subtracted.
-            # When a backend IS the sq-out chord and being subtracted, only subtract the least valuable note.
-            for be in br_edge.backends:
-                if be.timecode >= br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
-                    new_path.data.score_sp -= be.points
-                
-                # And add back in sqout points (lol) if this is the exact sqout chord
-                if be.timecode == br_edge.sqinout_time and be.timecode <= new_path.currentnode.timecode:
-                    new_path.data.score_sp += be.sqout_points
-        else:
-            # Typical deactivation
-            
-            # If a backend is only a few ms away, just add it in for free without calling it a double squeeze
-            for be in br_edge.backends:
-                if be.offset_ms > 0 and be.offset_ms < 3:
-                    new_path.data.score_sp += be.points
-
-            # SqIn may be possible, which would save self from being removed imminently
-            if br_edge.sqinout_time:
-                new_path.data.activations[-1].sqinouts.append(hydata.SqOut(br_edge.sqinout_timing))
+        deact_type = br_edge.deactivation_type(self.sp_end_time)
+        match deact_type:
+            case 'none':
+                return True, None
+            case 'normal':
+                normal_deact = self.create_deactivated_path(False)
+                return False, normal_deact
+            case 'sqinout':
+                sqout_deact = self.create_deactivated_path(True)
                 self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
-                # self got here by being at its sp end time, but now it can be extended.
-                self.sp_end_time = br_edge.sqinout_indicator_time
-                self.buffered_sqin_sp = 1
-            
-        terminated = self.currentnode.is_sp and self.currentnode.timecode == self.sp_end_time
-        return (not terminated), new_path
+                self.sp_end_time = br_edge.sqin_time
+                # Avoid double-counting this SP when the path advances.
+                self.buffered_sqin_sp = br_edge.late_sqin_count
+                sqout_deact.buffered_sqin_sp = br_edge.late_sqin_count
+                return True, sqout_deact
+            case _:
+                raise Exception(f"Unexpected deactivation type: {deact_type}")
     
     def is_complete(self):
         return self.currentnode == None

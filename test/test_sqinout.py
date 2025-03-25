@@ -38,12 +38,14 @@ class TestSqinout(unittest.TestCase):
         s_acts
     ):
         path = self.best_path(chartname)
-        
         self.assertEqual(len(path.activations), len(s_acts))
-        
         for i, (skip, mbt) in enumerate(s_acts):
             self.assertEqual(path.activations[i].skips, skip)
-            self.assertEqual(path.activations[i].timecode.measure_beats_ticks, mbt)
+            self.assertEqual(path.activations[i].timecode.measurestr(), mbt)
+        
+    def _test_pathstr(self, chartname, s_pathstr):
+        path = self.best_path(chartname)
+        self.assertEqual(path.pathstring(), s_pathstr)
         
     def test_sqin_0ms(self):
         self._test_scoring(
@@ -102,8 +104,14 @@ class TestSqinout(unittest.TestCase):
         self._test_activations(
             "sqout_late_chopsuey.mid",
             [
-                (5, (43,1,0)),
-                (0, (73,1,0)),
-                (2, (105,1,0))
+                (5, "m43.1.0"),
+                (0, "m73.1.0"),
+                (2, "m105.1.0")
             ]
         )
+
+    def test_path_wtd(self):
+        self._test_pathstr("wtd.chart", "1 1 E5")
+        
+    def test_path_chopsuey(self):
+        self._test_pathstr("sqout_late_chopsuey.mid", "5 0 2")
