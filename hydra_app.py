@@ -506,7 +506,7 @@ def on_run_chart(sender, app_data, user_data):
         )
     except Exception as e:
         dpg.configure_item("songdetails_progresspanel", height=180)
-        dpg.set_value("analyze_errorcontent", str(e))
+        dpg.set_value("analyze_errorcontent", repr(e))
         dpg.show_item("analyze_errorlabel")
         dpg.show_item("analyze_errorcontent")
         dpg.show_item("analyze_dismissbutton")
