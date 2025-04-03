@@ -311,7 +311,7 @@ class HydraRecord:
         return True
     
     def is_version_compatible(self):
-        return self.hyversion[:2] == hymisc.HYDRA_VERSION[:2]
+        return self.hyversion == hymisc.HYDRA_VERSION
 
 
 class Path:

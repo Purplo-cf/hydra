@@ -2,17 +2,17 @@ from functools import total_ordering
 import pathlib
 import sys
 
-"""Semantic version number for Hydra.
+"""Sort-of semantic version number for Hydra.
     
-Major version update: Incompatible changes or big milestones.
-Minor version update: Changes that affect save data or analysis results.
-Patch version update: UI or other cosmetic changes.
+Major version update: Big milestones, like introducing a new major feature.
+Minor version update: Most updates are these.
+Patch version update: Hotfixes or tweaks.
 
-For sanity reasons, records with a mismatched major or minor version
+For sanity reasons, records with a version that doesn't match completely
 will not be supported and the app will just ask the user to re-analyze them.
 
 """
-HYDRA_VERSION = (1,1,0)
+HYDRA_VERSION = (1,1,1)
 
 
 """Static paths and files"""
