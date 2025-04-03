@@ -797,7 +797,7 @@ def refresh_songdetails():
         dpg.add_table_column(width_fixed=True, init_width_or_weight=140)
         with dpg.table_row():
             dpg.add_spacer(height=0)
-            dpg.add_text("Hardest +/-/E", tag="hardestsqueeze_label")
+            dpg.add_text("Hardest +/-/E0", tag="hardestsqueeze_label")
             dpg.bind_item_font(dpg.last_item(), "MonoFont")
     
     any_difficulty_displayed = False
