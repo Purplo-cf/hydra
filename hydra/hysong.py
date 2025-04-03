@@ -187,7 +187,7 @@ class MidiParser:
             case mido.Message(note=103) if is_noteon:
                 return ('pre', self.op_solo, True)
             case mido.Message(note=103) if is_noteoff:
-                return ('post', self.op_solo, False)
+                return ('pre', self.op_solo, False)
             case mido.Message(note=100, velocity=127) if is_noteon:
                 return ('notes', self.op_note, hydata.NoteColor.GREEN, hydata.NoteDynamicType.ACCENT, False)
             case mido.Message(note=100, velocity=1) if is_noteon:
