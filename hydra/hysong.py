@@ -235,15 +235,27 @@ class MidiParser:
     
     def op_fillstart(self, tick):
         self._fill_start_tick = tick
+        
+        # A fill start can "interrupt" a previous fill that was waiting for a 
+        # note in order to resolve. But since a new fill is starting, we can
+        # conclude that previous fill is empty (grr)
+        self._fill_end_tick = None
     
     def op_store_fillend(self, tick):
         self._fill_end_tick = tick
         
     def op_apply_fill(self, starttick):
+        if not self.song.sequence:
+            return
+        
         # Due to correction mechanics, end tick is not always based on the
         # authored phrase length
         endtick = self.song.sequence[-1].timecode.ticks
-        self.song.sequence[-1].activation_length = endtick - starttick
+        
+        # We look back for an activation note, but watch out for
+        # fills with no notes in them (grr)
+        if self.song.sequence[-1].timecode.ticks >= starttick:
+            self.song.sequence[-1].activation_length = endtick - starttick
     
     def op_sp_end(self):
         self.song.sequence[-1].flag_sp = True
@@ -602,10 +614,17 @@ class ChartParser:
         self._fill_end_tick = endtick
     
     def op_fillend(self, starttick):
+        if not self.song.sequence:
+            return
+        
         # Due to correction mechanics, end tick is not always based on the
         # authored phrase length
         endtick = self.song.sequence[-1].timecode.ticks
-        self.song.sequence[-1].activation_length = endtick - starttick
+        
+        # We look back for an activation note, but watch out for
+        # fills with no notes in them (grr)
+        if self.song.sequence[-1].timecode.ticks >= starttick:
+            self.song.sequence[-1].activation_length = endtick - starttick
     
     def op_sp_start(self, endtick):
         self._sp_end_tick = endtick
