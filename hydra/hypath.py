@@ -50,7 +50,7 @@ class ScoreGraph:
         self._proto_base_edge = ScoreGraphEdge()
         self._proto_sp_edge = ScoreGraphEdge()
         
-        for timestamp in song.sequence:
+        for timestamp in song._sequence:
             # SP can fall off between timestamps, so handle those first if any.
             for pending_deact in sorted(list(self._pending_deacts)):
                 if pending_deact >= timestamp.timecode:
@@ -112,7 +112,7 @@ class ScoreGraph:
             if timestamp.timecode in self._pending_deacts:
                 self.handle_deact(timestamp.timecode, timestamp.chord)
             
-        self.advance_tracks(song.sequence[-1].timecode, song.sequence[-1].chord)
+        self.advance_tracks(song.last.timecode, song.last.chord)
     
     def store_notecount(self, count):
         self._proto_base_edge.notecount += count

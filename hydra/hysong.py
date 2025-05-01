@@ -44,7 +44,7 @@ class SongIter:
         
     def __next__(self):
         try:
-            ts = self.song.sequence[self.i]
+            ts = self.song[self.i]
             self.i += 1
         except IndexError:
             raise StopIteration
@@ -69,7 +69,7 @@ class Song:
     timestamps, plus tempo/meter changes.
     """
     def __init__(self, resolution):
-        self.sequence = []
+        self._sequence = []
         
         """This song's conversions from ticks to any other time unit."""
         self.tick_resolution = resolution
@@ -82,6 +82,16 @@ class Song:
     def __iter__(self):
         return SongIter(self)
     
+    def __getitem__(self, i, objtype=None):
+        return self._sequence[i]
+        
+    def add_timestamp(self, ts):
+        self._sequence.append(ts)
+        
+    @property
+    def last(self):
+        return self._sequence[-1]
+    
     def check_activations(self):
         """ If a chart has no drum fills, add them in like Clone Hero would.
         
@@ -89,7 +99,7 @@ class Song:
         on beat 1 of measures if there's a note there. When an act
         is successfully placed, another can't be placed for 4 measures.
         """
-        if all([not ts.has_activation() for ts in self.sequence]):
+        if all(not ts.has_activation() for ts in self._sequence):
             self.features.append('Auto-Generated Fills')
             tpm = self.tpm_changes[0]
             lockout_end_m = 2
@@ -170,6 +180,8 @@ class MidiParser:
                 return ('pre', self.op_fillstart, tick)
             case mido.Message(note=120) if is_noteoff:
                 return ('pre', self.op_store_fillend, tick)
+            case mido.Message(note=116) if is_noteon:
+                return ('pre', self.op_sp_start, tick)
             case mido.Message(note=116) if is_noteoff:
                 return ('pre', self.op_sp_end)
             case mido.Message(note=112) if is_noteon:
@@ -245,20 +257,32 @@ class MidiParser:
         self._fill_end_tick = tick
         
     def op_apply_fill(self, starttick):
-        if not self.song.sequence:
+        try:
+            latest_note = self.song[-1]
+        except IndexError:
+            # Fill ended, but there hasn't been a single note yet.
             return
         
-        # Due to correction mechanics, end tick is not always based on the
-        # authored phrase length
-        endtick = self.song.sequence[-1].timecode.ticks
-        
-        # We look back for an activation note, but watch out for
-        # fills with no notes in them (grr)
-        if self.song.sequence[-1].timecode.ticks >= starttick:
-            self.song.sequence[-1].activation_length = endtick - starttick
+        # Double check that the latest note is recent enough to be in the fill
+        if latest_note.timecode.ticks >= starttick:
+            # Due to correction mechanics, end tick is not always based on the
+            # authored phrase length
+            endtick = latest_note.timecode.ticks
+            latest_note.activation_length = endtick - starttick
     
+    def op_sp_start(self, starttick):
+        self._sp_start_tick = starttick
+        
     def op_sp_end(self):
-        self.song.sequence[-1].flag_sp = True
+        try:
+            latest_note = self.song[-1]
+        except IndexError:
+            # SP phrase, but there hasn't been a single note yet.
+            return
+            
+        if latest_note.timecode.ticks >= self._sp_start_tick:
+            # Double check that latest note is recent enough to be in the SP
+            latest_note.flag_sp = True
     
     def op_tom(self, color, cymbal):
         self._flag_cymbals[color] = cymbal
@@ -299,9 +323,15 @@ class MidiParser:
         # Phrase end: Activation (waits until a timestamp with a chord)
         if self._chord.count() and self._fill_end_tick is not None and tick >= self._fill_end_tick:
             # This chord is at or past the end of an activation marker
-            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks
+            try:
+                prevchord_dist = self._fill_end_tick - self.song[-1].timecode.ticks
+            except IndexError:
+                prevchord_dist = None
             nextchord_dist = tick - self._fill_end_tick
-            if nextchord_dist <= self.song.tick_resolution // 32 and nextchord_dist <= prevchord_dist:
+            
+            if (nextchord_dist <= self.song.tick_resolution // 32
+                and (prevchord_dist is None or nextchord_dist <= prevchord_dist)
+            ):
                 # Let the activation apply to this chord if it's at most
                 # a 1/128th note after AND the previous chord isn't closer
                 order = 'post'
@@ -330,7 +360,7 @@ class MidiParser:
             if self._flag_disco:
                 timestamp.chord.apply_disco_flip()
             
-            self.song.sequence.append(timestamp)
+            self.song.add_timestamp(timestamp)
             self._chord = None
             
         # Parsed actions that apply after the timestamp
@@ -594,7 +624,7 @@ class ChartParser:
             case ChartDataEntry(notevalue=68) if self.mode_pro:
                 return ('note_mods', self.op_cymbal, hydata.NoteColor.GREEN)
             case ChartDataEntry(phrasevalue=2, phraselength=length):
-                return ('pre', self.op_sp_start, tick + length)
+                return ('pre', self.op_sp_start, tick, tick + length)
             case ChartDataEntry(phrasevalue=64, phraselength=length):
                 return ('pre', self.op_fillstart, tick, tick + length)
             case _:
@@ -614,23 +644,33 @@ class ChartParser:
         self._fill_end_tick = endtick
     
     def op_fillend(self, starttick):
-        if not self.song.sequence:
+        try:
+            latest_note = self.song[-1]
+        except IndexError:
+            # Fill, but there hasn't been a single note yet.
             return
         
-        # Due to correction mechanics, end tick is not always based on the
-        # authored phrase length
-        endtick = self.song.sequence[-1].timecode.ticks
-        
-        # We look back for an activation note, but watch out for
-        # fills with no notes in them (grr)
-        if self.song.sequence[-1].timecode.ticks >= starttick:
-            self.song.sequence[-1].activation_length = endtick - starttick
+        # Double check that latest note is recent enough
+        if latest_note.timecode.ticks >= starttick:
+            # Due to correction mechanics, end tick is not always based on the
+            # authored phrase length
+            endtick = latest_note.timecode.ticks
+            latest_note.activation_length = endtick - starttick
     
-    def op_sp_start(self, endtick):
+    def op_sp_start(self, starttick, endtick):
+        self._sp_start_tick = starttick
         self._sp_end_tick = endtick
     
-    def op_sp_end(self):
-        self.song.sequence[-1].flag_sp = True
+    def op_sp_end(self, starttick):
+        try:
+            latest_note = self.song[-1]
+        except IndexError:
+            # SP phrase, but there hasn't been a single note yet.
+            return
+        
+        if latest_note.timecode.ticks >= starttick:
+            # Double check that latest note is recent enough to be in the SP
+            latest_note.flag_sp = True
     
     def op_solo(self, is_on):
         self._flag_solo = is_on
@@ -672,15 +712,21 @@ class ChartParser:
         
         # Phrase end: SP 
         if self._sp_end_tick is not None and tick >= self._sp_end_tick:
-            ops.append(('pre', self.op_sp_end))
+            ops.append(('pre', self.op_sp_end, self._sp_start_tick))
             self._sp_end_tick = None
         
         # Phrase end: Activation (waits until a timestamp with a chord)
         if self._chord.count() and self._fill_end_tick is not None and tick >= self._fill_end_tick:
             # This chord is at or past the end of an activation marker
-            prevchord_dist = self._fill_end_tick - self.song.sequence[-1].timecode.ticks
+            try:
+                prevchord_dist = self._fill_end_tick - self.song[-1].timecode.ticks
+            except IndexError:
+                prevchord_dist = None
+            
             nextchord_dist = tick - self._fill_end_tick
-            if nextchord_dist <= self.song.tick_resolution // 32 and nextchord_dist <= prevchord_dist:
+            if (nextchord_dist <= self.song.tick_resolution // 32
+                and (prevchord_dist is None or nextchord_dist <= prevchord_dist)
+            ):
                 # Let the activation apply to this chord if it's at most
                 # a 1/128th note after AND the previous chord isn't closer
                 order = 'post'
@@ -709,7 +755,7 @@ class ChartParser:
             if self._flag_disco:
                 timestamp.chord.apply_disco_flip()
                 
-            self.song.sequence.append(timestamp)
+            self.song.add_timestamp(timestamp)
             self._chord = None
             
         # Parsed actions that apply after the timestamp
