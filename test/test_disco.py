@@ -16,7 +16,7 @@ class TestDisco(unittest.TestCase):
         record = hyutil.analyze_chart(
             chartpath,
             'expert', True, True,
-            'scores', 0
+            'scores', 4
         )
         
         self.assertEqual(record.paths[0].totalscore(), score)

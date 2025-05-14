@@ -23,7 +23,7 @@ class TestActMisalign(unittest.TestCase):
         record = hyutil.analyze_chart(
             chartpath,
             'expert', True, True,
-            'scores', 0
+            'scores', 4
         )
         act_chord = record.paths[0].activations[0].frontend.chord
         self.assertEqual(act_chord[hydata.NoteColor.GREEN] is not None, has_green)

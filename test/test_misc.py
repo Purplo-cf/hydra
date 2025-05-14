@@ -15,7 +15,7 @@ class TestMisc(unittest.TestCase):
         return hyutil.analyze_chart(
             self.chartfolder + os.sep + chartname,
             'expert', True, True,
-            'scores', 0
+            'scores', 4
         ).paths[0]
     
     def _test_pathstr(self, chartname, s_pathstr):

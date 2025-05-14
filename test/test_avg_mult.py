@@ -16,7 +16,7 @@ class TestAverageMultiplier(unittest.TestCase):
         path = hyutil.analyze_chart(
             chartpath,
             'expert', True, True,
-            'scores', 0
+            'scores', 4
         ).paths[0]
         
         self.assertEqual(str(path.avg_mult())[:5], avgmult)
