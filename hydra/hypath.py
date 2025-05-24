@@ -462,8 +462,11 @@ class GraphPather:
             False: []
         }
         for p in paths:
-            pathgroups[p.is_active_sp()].append(p)                
-
+            # Don't consider paths that recently SqIn/SqOuted as they have
+            # interacted with an SP phrase earlier than other paths.
+            if p.buffered_sqinout_sp == 0:
+                pathgroups[p.is_active_sp()].append(p)                
+        
         worsethan_scores = {p: set() for p in paths}
         paths_to_remove = set()
         
@@ -482,7 +485,7 @@ class GraphPather:
                 
             if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
                 paths_to_remove.add(worse)
-                
+            
             if depth_mode == 'scores':
                 worsethan_scores[worse].add(better.data.totalscore())
                 if len(worsethan_scores[worse]) > depth_value:
@@ -505,7 +508,7 @@ class GraphPather:
                 cmp += 1
             elif sp_diff < 0:
                 cmp -= 1
-                
+            
             score_diff = q.data.totalscore() - p.data.totalscore()
             if score_diff > 0:
                 cmp += 1
@@ -554,7 +557,7 @@ class GraphPath:
             self.currentnode = parent_path.currentnode
             self.sp = parent_path.sp
             self.currentskips = parent_path.currentskips
-            self.buffered_sqin_sp = parent_path.buffered_sqin_sp
+            self.buffered_sqinout_sp = parent_path.buffered_sqinout_sp
             self.sp_end_time = parent_path.sp_end_time
             self.sp_ready_time = parent_path.sp_ready_time
             self.skipped_e_offset = parent_path.skipped_e_offset
@@ -565,7 +568,7 @@ class GraphPath:
             self.currentnode = None
             self.sp = 0
             self.currentskips = 0
-            self.buffered_sqin_sp = 0 # sp that was applied to facilitate a sq-in, and needs to not be double counted
+            self.buffered_sqinout_sp = 0 # sp that was handled during a recent sqin/sqout, and needs to not be double counted
             self.sp_end_time = None
             self.sp_ready_time = None
             self.skipped_e_offset = None
@@ -608,20 +611,20 @@ class GraphPath:
                 # The sp_times can be a tuple with the sp time and the sp time + 8 measures
                 # The sp extension is actually the same as the pending_deact extensions in ScoreGraph so let's use those
                 for sptc, extension_map in adv_edge.sp_times:
-                    if self.buffered_sqin_sp > 0:
-                        self.buffered_sqin_sp -= 1
+                    if self.buffered_sqinout_sp > 0:
+                        self.buffered_sqinout_sp -= 1
                     else:
                         self.sp_end_time = extension_map[self.sp_end_time]
                 
             else:
                 # Path isn't in SP: Add SP bars
                 old_sp = self.sp
-                self.sp = min(self.sp + len(adv_edge.sp_times) - self.buffered_sqin_sp, 4)
+                self.sp = min(self.sp + len(adv_edge.sp_times) - self.buffered_sqinout_sp, 4)
 
                 if old_sp < 2 and self.sp >= 2:
-                    self.sp_ready_time = adv_edge.sp_times[1 - old_sp + self.buffered_sqin_sp][0]
+                    self.sp_ready_time = adv_edge.sp_times[1 - old_sp + self.buffered_sqinout_sp][0]
                     
-                self.buffered_sqin_sp = 0
+                self.buffered_sqinout_sp = 0
  
             self.data.multsqueezes += adv_edge.multsqueezes
                         
@@ -732,8 +735,8 @@ class GraphPath:
                 self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
                 self.sp_end_time = br_edge.sqin_time
                 # Avoid double-counting this SP when the path advances.
-                self.buffered_sqin_sp = br_edge.late_sqin_count
-                sqout_deact.buffered_sqin_sp = br_edge.late_sqin_count
+                self.buffered_sqinout_sp = br_edge.late_sqin_count
+                sqout_deact.buffered_sqinout_sp = br_edge.late_sqin_count
                 return True, sqout_deact
             case _:
                 raise Exception(f"Unexpected deactivation type: {deact_type}")
