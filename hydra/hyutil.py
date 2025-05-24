@@ -32,14 +32,15 @@ def discover_charts(rootfolders, cb_progress=None):
         f, origin = unexplored.pop()
         
         if os.path.isfile(f):
-            if f.endswith(".mid") or f.endswith(".chart"):
+            dir, base = os.path.split(f)
+            
+            if base in ["notes.mid", "notes.chart"]:
                 i = 0
-            elif f.endswith("song.ini"):
+            elif base == "song.ini":
                 i = 1
             else:
                 continue
                 
-            dir = os.path.dirname(f)
             if dir not in found_by_dirname:
                 found_by_dirname[dir] = [
                     None, None,
@@ -73,9 +74,8 @@ def get_folder_chart(folder):
     """Non-recursive lookup for a chart file in the given folder."""
     for f in os.listdir(folder):
         filepath = os.path.join(folder, f)
-        
         if os.path.isfile(filepath):
-            if filepath.endswith(".mid") or filepath.endswith(".chart"):
+            if f in ["notes.mid", "notes.chart"]:
                 return filepath
     return None
 
