@@ -5,6 +5,8 @@ import sqlite3
 import time
 import json
 
+import pyperclip
+
 import dearpygui.dearpygui as dpg
 import dearpygui.demo as demo
 
@@ -247,10 +249,14 @@ class HyAppState:
         self.search = None
         
         self.current_path_selectable = None
+        self.current_path_copytext = None
+        
         self.selected_song_row = None
     
         self.scanmodal_height_short = 190
         self.scanmodal_height_long = 320
+        
+        self.input = {'C': False}
     
     def pagecount(self):
         return self.librarysize // self.TABLE_ROWCOUNT
@@ -386,12 +392,18 @@ def on_path_selected(sender, app_data, path):
         dpg.configure_item(appstate.current_path_selectable, enabled=True)
     
     appstate.current_path_selectable = sender
+    appstate.current_path_copytext = f"{path.pathstring()} (Score: {path.totalscore():,})"
     
     # "Lock" the new selected path: only deselectable by selecting another.
     dpg.configure_item(sender, enabled=False)
     
     # Rebuild path details panel
     dpg.delete_item("songdetails_pathdetails", children_only=True)
+    
+    dpg.add_spacer(height=8, parent="songdetails_pathdetails")
+    dpg.add_button(label="Copy path string", width=120, height=30, indent=6, parent="songdetails_pathdetails", callback=on_copy_current_pathstring)
+    dpg.bind_item_font(dpg.last_item(), "MainFont")
+    dpg.add_spacer(height=2, parent="songdetails_pathdetails")
     
     with dpg.tree_node(label="Multiplier squeezes", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
@@ -479,6 +491,25 @@ def on_path_selected(sender, app_data, path):
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
         dpg.add_text(f"\nTotal Score:      {path.totalscore(): >10,}")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
+
+def on_copy_current_pathstring(sender, app_data):
+    # Coming from the path-viewing context
+    copy_current_pathstring()
+
+def copy_current_pathstring():    
+    pyperclip.copy(appstate.current_path_copytext)
+
+def on_key_c_press(sender, app_data):
+    if not appstate.input['C']:
+        appstate.input['C'] = True
+        if dpg.is_key_down(dpg.mvKey_LControl):
+            # Path-viewing context?
+            # to do: Better state than is visible?
+            if dpg.is_item_visible("songdetails"):
+                copy_current_pathstring()
+
+def on_key_c_release(sender, app_data):
+    appstate.input['C'] = False
 
 def on_pageleft(sender, app_data):
     appstate.table_viewpage = max(appstate.table_viewpage - 1, 0)
@@ -788,6 +819,7 @@ def refresh_songdetails():
     
     dpg.delete_item("songdetails_pathpanel", children_only=True)
     appstate.current_path_selectable = None
+    appstate.current_path_copytext = None
     
     current_score = None 
     current_treenode = None
@@ -1028,9 +1060,9 @@ def build_main_ui():
             dpg.bind_item_font(dpg.last_item(), "MainFont24")
             dpg.add_text("This record is out of date. To make sure you have the latest results, please re-analyze.", tag="songdetails_plsupdaterecord", show=False, indent=12)
             dpg.bind_item_font(dpg.last_item(), "MainFont24")
-            dpg.add_child_window(tag="songdetails_pathpanel", border=False, width=540)
-            with dpg.child_window(tag="songdetails_pathdivider", border=False, width=40, frame_style=True):
-                dpg.add_text(" >>>", pos=(5,0))
+            dpg.add_child_window(tag="songdetails_pathpanel", border=False, width=600)
+            with dpg.child_window(tag="songdetails_pathdivider", border=False, width=5, frame_style=True):
+                pass
                 
             with dpg.child_window(tag="songdetails_pathdetails", border=False, width=-1):
                 dpg.add_text("Filler - Path Details")
@@ -1065,6 +1097,10 @@ if __name__ == '__main__':
 
     #demo.show_demo()
     #dpg.show_font_manager()
+
+    with dpg.handler_registry():
+        dpg.add_key_press_handler(dpg.mvKey_C, callback=on_key_c_press)
+        dpg.add_key_release_handler(dpg.mvKey_C, callback=on_key_c_release)
 
     dpg.setup_dearpygui()
     

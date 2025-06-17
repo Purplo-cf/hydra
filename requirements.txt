@@ -1,3 +1,4 @@
 dearpygui==2.0.0
-git+https://github.com/DragonDelgar/mido.git#egg=mido
+mido @ git+https://github.com/DragonDelgar/mido.git@ae9262d8afed16ee9c3355eb17310a63b5557f4f
 packaging==24.2
+pyperclip==1.9.0
