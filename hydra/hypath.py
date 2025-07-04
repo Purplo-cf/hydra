@@ -223,9 +223,19 @@ class ScoreGraph:
         
         act_edge.frontend = hydata.FrontendSqueeze(frontend_chord, frontend_points)
         
-        act_edge.activation_fill_deadline = hymisc.Timecode(act_edge.dest.timecode.ticks - 2 * fill_length_ticks, song)
+        # Set E
+        fillend = act_edge.dest.timecode
+        fillstart = hymisc.Timecode(fillend.ticks - fill_length_ticks, song)
         
-        act_edge.activation_initial_end_times = {sp: act_edge.dest.timecode.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
+        padding = fill_length_ticks + song.tick_resolution/16
+        fillstart_padded = hymisc.Timecode(fillend.ticks - padding, song)
+        
+        fill_length_ms = fillend.ms - fillstart.ms
+        raw_preroll_ms = fillend.ms - fillstart_padded.ms
+        preroll_ms = max(250, min(raw_preroll_ms, 10000))        
+        act_edge.activation_fill_deadline_ms = fillend.ms - fill_length_ms - preroll_ms
+        
+        act_edge.activation_initial_end_times = {sp: fillend.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
         self._base_track_head.branch_edge = act_edge
     
     def add_deact_edge(self):
@@ -320,9 +330,8 @@ class ScoreGraphEdge:
         
         self.multsqueezes = []
         
-        # If SP is not ready at this timecode, then the fill will not appear
-        # even if you have enough SP
-        self.activation_fill_deadline = None
+        # SP must become ready by this time in order for the fill to show.
+        self.activation_fill_deadline_ms = None
         
         self.sqinout_time = None
         self.sqinout_timing = None
@@ -649,7 +658,7 @@ class GraphPath:
             return None
             
         # sp ready time must be before this activation fill's deadline
-        e_offset = br_edge.activation_fill_deadline.ms - self.sp_ready_time.ms
+        e_offset = br_edge.activation_fill_deadline_ms - self.sp_ready_time.ms
         
         # Thanks to the timing window, the cutoff is -70ms not 0ms
         if e_offset < -70:

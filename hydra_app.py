@@ -434,7 +434,7 @@ def on_path_selected(sender, app_data, path):
                         
                         # E
                         if act.is_e_critical():
-                            cftext = f"Calibration fill: {-act.e_offset + 0.0:.1f}ms"
+                            cftext = f"Calibration fill: {act.e_offset + 0.0:.1f}ms"
                             cftext += " (required)" if act.is_E0() else " (optional)"
                             dpg.add_text(cftext)
                         

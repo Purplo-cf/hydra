@@ -23,7 +23,7 @@ class TestSB25(unittest.TestCase):
         paths = [p.pathstring() for p in self.best_paths(chartname)]
         for i, s_pathstr in enumerate(s_pathstrs):
             with self.subTest(i=i):
-                self.assertTrue(s_pathstr in paths)
+                self.assertTrue(s_pathstr in paths, f"{s_pathstr} not in {paths}")
     
     # T1
     
@@ -37,7 +37,7 @@ class TestSB25(unittest.TestCase):
         self._test_pathstrs("pokemontheme.chart", ["(No activations.)"])
         
     def test_paths_totheend(self):
-        self._test_pathstrs("totheend.mid", ["2 2 0"])
+        self._test_pathstrs("totheend.mid", ["E2 2 0"])
         
     def test_paths_aprilhaha(self):
         self._test_pathstrs("aprilhaha.chart", ["0 2 1"])
@@ -116,7 +116,7 @@ class TestSB25(unittest.TestCase):
         self._test_pathstrs("thankyoupain.chart", ["2 0 0 2"])
         
     def test_paths_87(self):
-        self._test_pathstrs("87.chart", ["3 0 2"])
+        self._test_pathstrs("87.chart", ["E3 0 E2"])
         
     def test_paths_bledtobefree(self):
         self._test_pathstrs("bledtobefree.mid", ["2 1 0 5 1"])
@@ -125,7 +125,7 @@ class TestSB25(unittest.TestCase):
         self._test_pathstrs("swallow.mid", ["(No activations.)"])
         
     def test_paths_b(self):
-        self._test_pathstrs("b.mid", ["0 4 4 0 2 1"])
+        self._test_pathstrs("b.mid", ["0 4 4 0 E2 1"])
         
     # T7
     
@@ -133,16 +133,16 @@ class TestSB25(unittest.TestCase):
         self._test_pathstrs("blister.mid", ["(No activations.)"])
         
     def test_paths_focus(self):
-        self._test_pathstrs("focus.mid", ["0 3+ 0 0"])
+        self._test_pathstrs("focus.mid", ["0 E3+ E0 0"])
         
     def test_paths_thespiralingvoid(self):
-        self._test_pathstrs("thespiralingvoid.chart", ["0 0 1 3 4+ 0+ 0 0 0 0"])
+        self._test_pathstrs("thespiralingvoid.chart", ["0 0 1 3 E4+ 0+ 0 0 0 0"])
         
     def test_paths_neibolt(self):
         self._test_pathstrs("neibolt.mid", ["2 0 0 2 2 2 0"])
         
     def test_paths_handthatrocksthecradle(self):
-        self._test_pathstrs("handthatrocksthecradle.mid", ["7 4 3"])
+        self._test_pathstrs("handthatrocksthecradle.mid", ["7 4 E3"])
         
     # T8
     
@@ -153,7 +153,7 @@ class TestSB25(unittest.TestCase):
         self._test_pathstrs("godzilla.chart", ["(No activations.)"])
         
     def test_paths_geturfreakon(self):
-        self._test_pathstrs("geturfreakon.chart", ["5- 2+ 2- 0 0"])
+        self._test_pathstrs("geturfreakon.chart", ["5- 2+ E2- E0 E0"])
         
     def test_paths_drjekyll(self):
         self._test_pathstrs("drjekyll.mid", ["(No activations.)"])
