@@ -4,7 +4,7 @@ from enum import Enum
 from abc import ABC, abstractmethod
 
 from . import hymisc
-
+from . import hyencode
 
 def json_save(obj):
     """Object --> dict conversion."""
@@ -41,7 +41,7 @@ def json_save(obj):
         return {
             '__obj__': 'msq',
         
-            'chord': obj.chord,
+            'chord': obj.chord.code(),
             'combo': obj.combo,
         }
     
@@ -51,10 +51,10 @@ def json_save(obj):
         
             'skips': obj.skips,
             'timecode': obj.timecode,
-            'chord': obj.chord,
+            'chord': obj.chord.code(),
             'sp_meter': obj.sp_meter,
             
-            'frontend': obj.frontend,
+            'fe_pts': obj.frontend_points,
             'backends': obj.backends,
             
             'sqinouts': obj.sqinouts,
@@ -66,7 +66,7 @@ def json_save(obj):
         return {
             '__obj__': 'fsq',
         
-            'chord': obj.chord,
+            'chord': obj.chord.code(),
             'points': obj.points,
         }
         
@@ -89,46 +89,12 @@ def json_save(obj):
             '__obj__': 'bsq',
         
             'timecode': obj.timecode,
-            'chord': obj.chord,
+            'chord': obj.chord.code(),
             'points': obj.points,
             'sqout_points': obj.sqout_points,
             'is_sp': obj.is_sp,
             'offset_ms': obj.offset_ms,
     }
-    
-    if isinstance(obj, Chord):
-        return {
-            '__obj__': 'chord',
-        
-            'kick': obj.notemap[NoteColor.KICK],
-            'red': obj.notemap[NoteColor.RED],
-            'yellow': obj.notemap[NoteColor.YELLOW],
-            'blue': obj.notemap[NoteColor.BLUE],
-            'green': obj.notemap[NoteColor.GREEN],
-        }
-    
-    if isinstance(obj, ChordNote):
-        return {
-            '__obj__': 'note',
-        
-            'colorname': obj.colortype.name,
-            'dynamic': obj.dynamictype,
-            'cymbal': obj.cymbaltype,
-            'is_2x': obj.is2x,
-        }
-    
-    if isinstance(obj, NoteCymbalType):
-        return {
-            NoteCymbalType.NORMAL: 'normal',
-            NoteCymbalType.CYMBAL: 'cymbal',
-        }[obj]
-    
-    if isinstance(obj, NoteDynamicType):
-        return {
-            NoteDynamicType.NORMAL: 'normal',
-            NoteDynamicType.GHOST: 'ghost',
-            NoteDynamicType.ACCENT: 'accent',
-        }[obj]
     
     if isinstance(obj, hymisc.Timecode):
         return {
@@ -141,8 +107,6 @@ def json_save(obj):
             'mbt': obj.measure_beats_ticks,
             'm_decimal': obj.measures_decimal,
             'ms': obj.ms,
-                        
-            'ref_measure': obj.measurestr(),
         }
     
     raise TypeError(f"Unhandled type: {type(obj)}")
@@ -192,7 +156,7 @@ def json_load(_dict):
             return o
         
         if obj_code == 'msq':
-            o = MultSqueeze(_dict['chord'], _dict['combo'])
+            o = MultSqueeze(Chord.from_code(_dict['chord']), _dict['combo'])
             
             return o
         
@@ -200,10 +164,10 @@ def json_load(_dict):
             o = Activation()
             o.skips = _dict['skips']
             o.timecode = _dict['timecode']
-            o.chord = _dict['chord']
+            o.chord = Chord.from_code(_dict['chord'])
             o.sp_meter = _dict['sp_meter']
             
-            o.frontend = _dict['frontend']
+            o.frontend_points = _dict['fe_pts']
             o.backends = _dict['backends']
             
             o.sqinouts = _dict['sqinouts']
@@ -213,7 +177,7 @@ def json_load(_dict):
             return o
         
         if obj_code == 'fsq':
-            o = FrontendSqueeze(_dict['chord'], _dict['points'])
+            o = FrontendSqueeze(Chord.from_code(_dict['chord']), _dict['points'])
 
             return o
         
@@ -230,42 +194,12 @@ def json_load(_dict):
         if obj_code == 'bsq':
             o = BackendSqueeze(
                 _dict['timecode'],
-                _dict['chord'],
+                Chord.from_code(_dict['chord']),
                 _dict['points'],
                 _dict['sqout_points'],
                 _dict['is_sp'],
             )
             o.offset_ms = _dict['offset_ms']
-            
-            return o
-        
-        if obj_code == 'chord':
-            o = Chord()
-            o.notemap = {
-                NoteColor.KICK: _dict['kick'],
-                NoteColor.RED: _dict['red'],
-                NoteColor.YELLOW: _dict['yellow'],
-                NoteColor.BLUE: _dict['blue'],
-                NoteColor.GREEN: _dict['green'],
-            }
-            
-            return o
-        
-        if obj_code == 'note':
-            o = ChordNote(NoteColor[_dict['colorname']])
-            
-            o.cymbaltype = {
-                'normal': NoteCymbalType.NORMAL,
-                'cymbal': NoteCymbalType.CYMBAL,
-            }[_dict['cymbal']]
-            
-            o.dynamictype = {
-                'normal': NoteDynamicType.NORMAL,
-                'ghost': NoteDynamicType.GHOST,
-                'accent': NoteDynamicType.ACCENT,
-            }[_dict['dynamic']]
-            
-            o.is2x = _dict['is_2x']
             
             return o
         
@@ -417,7 +351,7 @@ class Activation:
         self.chord = None
         self.sp_meter = None
         
-        self.frontend = None
+        self.frontend_points = None
         self.backends = []
         
         self.sqinouts = []
@@ -458,7 +392,7 @@ class Activation:
         c.chord = self.chord
         c.sp_meter = self.sp_meter
         
-        c.frontend = self.frontend
+        c.frontend_points = self.frontend_points
         c.backends = self.backends
         
         c.sqinouts = [s for s in self.sqinouts]
@@ -737,14 +671,6 @@ class NoteColor(Enum):
     BLUE = 4
     GREEN = 5
     
-    def code_pattern(self):
-        """How to find this color's note in a code, e.g. 'KRb+'."""
-        N = self.notationstr()
-        cym = f"|(?P<cym>{N.lower()})" if self.allows_cymbals() else ""
-        dyn = r"((?P<acc>\+)|(?P<gho>-))?" if self.allows_dynamics() else ""
-        
-        return rf"({N}{cym}){dyn}"
-    
     def allows_cymbals(self):
         return self in [
             NoteColor.YELLOW,
@@ -818,30 +744,17 @@ class ChordNote:
         colortype, 
         dynamictype=NoteDynamicType.NORMAL, 
         cymbaltype=NoteCymbalType.NORMAL, 
-        is2x=False,
-        code=None
+        is2x=False
     ):
         assert(colortype is not None)
         self.colortype = colortype
         self.dynamictype = dynamictype
         self.cymbaltype = cymbaltype
-            
-        if code is not None:
-            match = re.search(self.colortype.code_pattern(), code)
-            if not match:
-                raise ValueError(f"ChordNote code init failed.")
-            
-            if 'acc' in match.groupdict() and match['acc']:
-                self.dynamictype = NoteDynamicType.ACCENT
-            
-            if 'gho' in match.groupdict() and match['gho']:
-                self.dynamictype = NoteDynamicType.GHOST
-                
-            if 'cym' in match.groupdict() and match['cym']:
-                self.cymbaltype = NoteCymbalType.CYMBAL
-        
         self.is2x = is2x
-
+    
+    def __hash__(self):
+        return 1000 * self.colortype.value + 100 * self.dynamictype.value + 10 * self.cymbaltype.value + (1 if self.is2x else 0)
+    
     def __eq__(self, other):
         if other is None:
             return False
@@ -897,7 +810,7 @@ class ChordNote:
 class Chord:
     """Representation of a chord which has 1 note (or None) for each color."""
     
-    def __init__(self, code=None):
+    def __init__(self):
         self.notemap = {
             NoteColor.KICK: None,
             NoteColor.RED: None,
@@ -905,21 +818,34 @@ class Chord:
             NoteColor.BLUE: None,
             NoteColor.GREEN: None
         }
-        
-        if code is not None:
-            """Quickly build a chord from a shorthand string form.
-        
-            Searches for the following note letters: KRYBG
-            To apply cymbal: Replace with lowercase letter.
-            To apply accent: Add '+' after letter.
-            To apply ghost: Add '-' after letter.
-            """
-            for color in NoteColor:
-                try:
-                    self[color] = ChordNote(color, code=code)
-                except ValueError:
-                    pass
     
+    def __hash__(self):
+        h = [-1, -1, -1, -1, -1]
+        for i, note in enumerate(self.notemap.values()):
+            if note is not None:
+                h[i] = hash(note)
+        return hash(tuple(h))
+    
+    @staticmethod
+    def from_code(code):
+        notes_raw = hyencode.CHORD_DECODE[code]
+        
+        chord = Chord()
+        for notefields in notes_raw:
+            note = ChordNote(
+                NoteColor(notefields['color']), 
+                dynamictype=NoteDynamicType(notefields['dyn']), 
+                cymbaltype=NoteCymbalType(notefields['cym']), 
+                is2x=notefields['2x']
+            )
+            
+            chord[note.colortype] = note
+        
+        return chord
+        
+    def code(self):
+        return hyencode.CHORD_ENCODE[hash(self)]
+        
     def __repr__(self):
         return self.rowstr()
         

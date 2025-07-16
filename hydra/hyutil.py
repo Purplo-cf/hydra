@@ -153,3 +153,23 @@ def analyze_chart(
     pather.read(graph, d_mode, d_value, cb_pathsprogress)
 
     return pather.record
+
+def count_chart_chords(filepath):
+    # Parse chart file and make a song object
+    if filepath.endswith(".mid"):
+        parser = hysong.MidiParser()
+    elif filepath.endswith(".chart"):
+        parser = hysong.ChartParser()
+    else:
+        raise hymisc.ChartFileError(f"Unexpected chart filetype: {filepath}")
+    
+    parser.parsefile(filepath, 'Expert', True, True)
+    
+    counts = {}
+    for ts in parser.song._sequence:
+        if ts.chord in counts:
+            counts[ts.chord] += 1
+        else:
+            counts[ts.chord] = 1
+    
+    return counts

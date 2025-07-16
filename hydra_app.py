@@ -14,6 +14,7 @@ import hydra.hymisc as hymisc
 import hydra.hyutil as hyutil
 import hydra.hydata as hydata
 
+from timeit import default_timer as timer
 
 """Song Library (database)"""
 
@@ -188,7 +189,11 @@ class HyAppRecordBook:
         try:
             # Import from save file
             with open(hymisc.BOOKPATH, 'r') as jsonfile:
+                print(f"Loading json:")
+                starttime = timer()
                 self.book = json.load(jsonfile, object_hook=hydata.json_load)
+                endtime = timer()
+                print(f"\tTook {endtime - starttime:.6f} seconds.")
                 if self.book is None:
                     self.book = {}
         except FileNotFoundError:
@@ -233,9 +238,13 @@ class HyAppRecordBook:
         
     def savejson(self):
         """Save current state to json file."""
+        print(f"save json:")
+        starttime = timer()
         with open(hymisc.BOOKPATH, 'w') as jsonfile:
-            json.dump(self.book, jsonfile, default=hydata.json_save, indent=4)
-
+            json.dump(self.book, jsonfile, default=hydata.json_save, separators=(',', ':'))
+        endtime = timer()
+        print(f"\tTook {endtime - starttime:.6f} seconds.")
+ 
 class HyAppState:
     """Manages Hydra's state."""
     TABLE_ROWCOUNT = 15
@@ -439,7 +448,7 @@ def on_path_selected(sender, app_data, path):
                             dpg.add_text(cftext)
                         
                         # Frontend
-                        dpg.add_text(f"Frontend: {act.frontend.chord.rowstr() if act.frontend is not None else "None"}")
+                        dpg.add_text(f"Frontend: {act.chord.rowstr() if act.chord is not None else "None"}")
                         
                         # SP squeezes
                         for sq in act.sqinouts:

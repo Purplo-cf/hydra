@@ -378,7 +378,7 @@ class MidiParser:
         Must be .mid.
         """
         # Load from MIDI
-        mid = mido.MidiFile(filename)
+        mid = mido.MidiFile(filename, clip=True)
         
         # Parser settings
         self.mode_difficulty = m_difficulty
@@ -794,7 +794,8 @@ class ChartParser:
         self._flag_disco = False
         
         # Add from the drum chart to our Song
-        for tick, tick_entries in self.sections["ExpertDrums"].data.items():
-            self.push_timestamp(tick, tick_entries)
+        if 'ExpertDrums' in self.sections:
+            for tick, tick_entries in self.sections['ExpertDrums'].data.items():
+                self.push_timestamp(tick, tick_entries)
         
         self.song.check_activations()

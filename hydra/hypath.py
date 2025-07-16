@@ -676,7 +676,7 @@ class GraphPath:
         new_act.timecode = self.currentnode.timecode
         new_act.chord = self.currentnode.chord
         new_act.sp_meter = self.sp
-        new_act.frontend = br_edge.frontend
+        new_act.frontend_points = br_edge.frontend.points
         new_act.e_offset = self.skipped_e_offset if self.skipped_e_offset is not None else e_offset
         
         new_path.data.activations.append(new_act)

@@ -9,3 +9,6 @@ test/__pycache__
 hyapp.ini
 hyapp.db
 records.json
+
+# Local utility scripts, anything else
+local/*

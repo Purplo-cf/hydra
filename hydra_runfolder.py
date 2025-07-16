@@ -47,6 +47,6 @@ if __name__ == "__main__":
         records_count += 1
         
     with open(outfile, mode='w', encoding='utf-8') as output_json:
-        json.dump(book, output_json, default=hydata.json_save, indent=4)
+        json.dump(book, output_json, default=hydata.json_save, separators=(',', ':'))
         
     print(f"\nFinished saving {records_count} records to {outfile_name}")
