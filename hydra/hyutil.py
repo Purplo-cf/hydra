@@ -125,7 +125,8 @@ def analyze_chart(
     filepath,
     m_difficulty, m_pro, m_bass2x,
     d_mode, d_value,
-    cb_parsecomplete=None, cb_pathsprogress=None
+    cb_parsecomplete=None, cb_pathsprogress=None,
+    export_tempomap=False
 ):
     """The full process to go from chart file to hydata.
     
@@ -151,6 +152,14 @@ def analyze_chart(
     # Use score graph to run the paths
     pather = hypath.GraphPather()
     pather.read(graph, d_mode, d_value, cb_pathsprogress)
+    
+    if export_tempomap:
+        tempo_map = {
+            'res': parser.song.tick_resolution,
+            'tpm': {t: v for t,v in parser.song.tpm_changes.items()},
+            'bpm': {t: v for t,v in parser.song.bpm_changes.items()}
+        }
+        return (pather.record, tempo_map)
 
     return pather.record
 

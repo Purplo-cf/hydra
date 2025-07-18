@@ -50,7 +50,7 @@ def json_save(obj):
             '__obj__': 'activation',
         
             'skips': obj.skips,
-            'timecode': obj.timecode,
+            'tc': obj.timecode.ticks,
             'chord': obj.chord.code(),
             'sp_meter': obj.sp_meter,
             
@@ -88,26 +88,13 @@ def json_save(obj):
         return {
             '__obj__': 'bsq',
         
-            'timecode': obj.timecode,
+            'tc': obj.timecode.ticks,
             'chord': obj.chord.code(),
             'points': obj.points,
             'sqout_points': obj.sqout_points,
             'is_sp': obj.is_sp,
             'offset_ms': obj.offset_ms,
     }
-    
-    if isinstance(obj, hymisc.Timecode):
-        return {
-            '__obj__': 'timecode',
-            
-            'tick': obj.ticks,
-            
-            # Derived values, but if we're loading timestamps,
-            # we can't re-derive them without analyzing the song again.
-            'mbt': obj.measure_beats_ticks,
-            'm_decimal': obj.measures_decimal,
-            'ms': obj.ms,
-        }
     
     raise TypeError(f"Unhandled type: {type(obj)}")
     
@@ -117,13 +104,17 @@ def json_load(_dict):
     Hydra data types are saved with an __obj__ value to facilitate this.
     
     The top level maps hyhash keys to a 'records' map with keys based on
-    difficulty/pro/2x. Everything after that is a hydata object.
+    difficulty/pro/2x. Everything after that is a recursive hydata object
+    or a stripped down representation of one.
     """
     try:
         obj_code = _dict['__obj__']
     except KeyError:
         # Not one of our objects, just a dict
-        return _dict
+        try:
+            return {int(k):v for k,v in _dict.items()}
+        except ValueError:
+            return _dict
     
     if obj_code == 'record':
         o = HydraRecord()
@@ -163,7 +154,7 @@ def json_load(_dict):
         if obj_code == 'activation':
             o = Activation()
             o.skips = _dict['skips']
-            o.timecode = _dict['timecode']
+            o.timecode = _dict['tc']
             o.chord = Chord.from_code(_dict['chord'])
             o.sp_meter = _dict['sp_meter']
             
@@ -193,21 +184,13 @@ def json_load(_dict):
             
         if obj_code == 'bsq':
             o = BackendSqueeze(
-                _dict['timecode'],
+                _dict['tc'],
                 Chord.from_code(_dict['chord']),
                 _dict['points'],
                 _dict['sqout_points'],
                 _dict['is_sp'],
             )
             o.offset_ms = _dict['offset_ms']
-            
-            return o
-        
-        if obj_code == 'timecode':
-            o = hymisc.Timecode(_dict['tick'], None)
-            o.measure_beats_ticks = _dict['mbt']
-            o.measures_decimal = _dict['m_decimal']
-            o.ms = _dict['ms']
             
             return o
     except KeyError:

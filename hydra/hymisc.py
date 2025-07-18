@@ -64,7 +64,7 @@ class Timecode:
     milliseconds, which is a float value.
     
     """
-    def __init__(self, ticks, song):
+    def __init__(self, ticks, tick_r, tpm_map, bpm_map):
         # Fundamental value
         self.ticks = ticks
         
@@ -73,11 +73,10 @@ class Timecode:
         self.measures_decimal = 0.0
         self.ms = 0.0
         
-        if song is not None:
-            self._init_mbt(song)
-            self._init_ms(song)
+        self._init_mbt(tick_r, tpm_map)
+        self._init_ms(tick_r, bpm_map)
     
-    def _init_mbt(self, song):
+    def _init_mbt(self, tick_r, tpm_map):
         """Iterate over a song's meter to derive the measure/beat/tick position
         that corresponds to self.ticks.
         
@@ -85,9 +84,9 @@ class Timecode:
         The remainder after measures and beats stays as ticks.
             
         """
-        keys = sorted(song.tpm_changes.keys())
+        keys = sorted(tpm_map.keys())
         handled_ticks = 0
-        current_tpm = song.tpm_changes[0]
+        current_tpm = tpm_map[0]
         
         # Advance through the song in sections marked by each tpm change
         for tick_key in keys[1:]:
@@ -108,7 +107,7 @@ class Timecode:
                 break
         
             # Set new tpm for the next section
-            current_tpm = song.tpm_changes[tick_key]
+            current_tpm = tpm_map[tick_key]
         
         # Count past the last tpm mark if needed
         ticks_to_advance = self.ticks - handled_ticks
@@ -118,9 +117,9 @@ class Timecode:
         ticks_to_advance %= current_tpm
         
         # Less than 1 measure remains. Count whole beats
-        self.measure_beats_ticks[1] = ticks_to_advance // song.tick_resolution
+        self.measure_beats_ticks[1] = ticks_to_advance // tick_r
         # Any ticks left over (less than 1 beat) will just be the remainder
-        self.measure_beats_ticks[2] = ticks_to_advance % song.tick_resolution
+        self.measure_beats_ticks[2] = ticks_to_advance % tick_r
         
         # Alternate way to express being partway into a measure
         partial_m = ticks_to_advance / current_tpm
@@ -129,16 +128,16 @@ class Timecode:
         # Finalize
         self.measure_beats_ticks = tuple(self.measure_beats_ticks)
     
-    def _init_ms(self, song):
+    def _init_ms(self, tick_r, bpm_map):
         """Iterate over a song's tempo map to derive milliseconds."""
-        keys = sorted(song.bpm_changes.keys())
+        keys = sorted(bpm_map.keys())
         
         def to_tps(bpm):
-            nonlocal song
-            return bpm * song.tick_resolution / 60
+            nonlocal tick_r
+            return bpm * tick_r / 60
         
         handled_ticks = 0
-        tps = to_tps(song.bpm_changes[0])
+        tps = to_tps(bpm_map[0])
         # Advance through the song in sections marked by each bpm change
         for tick_key in keys[1:]:
             # Advance to whichever comes first, the next section or our tick
@@ -155,7 +154,7 @@ class Timecode:
             if handled_ticks == self.ticks:
                 break
                 
-            tps = to_tps(song.bpm_changes[tick_key])
+            tps = to_tps(bpm_map[tick_key])
             
         # Count ms past the last bpm mark if needed
         ticks_to_advance = self.ticks - handled_ticks
@@ -229,7 +228,7 @@ class Timecode:
             
         # Now that we have the right tpm, convert the partial measure to ticks
         partial = int(targetpartial * current_tpm)
-        return Timecode(handled_ticks + partial, song)
+        return Timecode(handled_ticks + partial, song.tick_resolution, song.tpm_changes, song.bpm_changes)
 
 def to_multiplier(combo):
     if combo < 10:

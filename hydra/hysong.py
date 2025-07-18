@@ -114,7 +114,7 @@ class Song:
                     lockout_end_m = measure + 4
 
     def start_time(self):
-        return hymisc.Timecode(0, self)
+        return hymisc.Timecode(0, self.tick_resolution, self.tpm_changes, self.bpm_changes)
 
 
 class MidiParser:
@@ -355,7 +355,7 @@ class MidiParser:
         if self._chord.count():
             timestamp = SongTimestamp()
             timestamp.chord = self._chord
-            timestamp.timecode = hymisc.Timecode(tick, self.song)
+            timestamp.timecode = hymisc.Timecode(tick, self.song.tick_resolution, self.song.tpm_changes, self.song.bpm_changes)
             timestamp.flag_solo = self._flag_solo
             if self._flag_disco:
                 timestamp.chord.apply_disco_flip()
@@ -750,7 +750,7 @@ class ChartParser:
         if self._chord.count():
             timestamp = SongTimestamp()
             timestamp.chord = self._chord
-            timestamp.timecode = hymisc.Timecode(tick, self.song)
+            timestamp.timecode = hymisc.Timecode(tick, self.song.tick_resolution, self.song.tpm_changes, self.song.bpm_changes)
             timestamp.flag_solo = self._flag_solo
             if self._flag_disco:
                 timestamp.chord.apply_disco_flip()

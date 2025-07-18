@@ -192,6 +192,7 @@ class HyAppRecordBook:
                 print(f"Loading json:")
                 starttime = timer()
                 self.book = json.load(jsonfile, object_hook=hydata.json_load)
+                self._init_timecodes()
                 endtime = timer()
                 print(f"\tTook {endtime - starttime:.6f} seconds.")
                 if self.book is None:
@@ -202,7 +203,27 @@ class HyAppRecordBook:
         # Resave / create save file
         self.savejson()
     
-    def add_song(self, hyhash, name, artist, charter):
+    def _init_timecodes(self):
+        """Replaces loaded timecode values (tick only) with full Timecodes."""
+        for info in self.book.values():
+            # Same tick? Just reuse the timecode instead of remaking
+            made_timecodes = {}
+            tempomap = (info['tempomap']['res'], info['tempomap']['tpm'], info['tempomap']['bpm'])
+            for record in info['records'].values():
+                for path in record.paths:
+                    for act in path.activations:
+                        if act.timecode not in made_timecodes:
+                            new_tc = hymisc.Timecode(act.timecode, *tempomap)
+                            made_timecodes[act.timecode] = new_tc
+                        act.timecode = made_timecodes[act.timecode]
+                            
+                        for bsq in act.backends:
+                            if bsq.timecode not in made_timecodes:
+                                new_tc = hymisc.Timecode(bsq.timecode, *tempomap)
+                                made_timecodes[bsq.timecode] = new_tc
+                            bsq.timecode = made_timecodes[bsq.timecode]
+    
+    def add_song(self, hyhash, name, artist, charter, tempomap):
         """Add an entry for the given hash.
         
         Multiple song library folders can have the same hyhash
@@ -220,6 +241,8 @@ class HyAppRecordBook:
             'ref_name': name,
             'ref_artist': artist,
             'ref_charter': charter,
+            
+            'tempomap': tempomap,
             
             'records': {},
         }
@@ -538,11 +561,12 @@ def on_run_chart(sender, app_data, user_data):
     # run chart
     try:
         chartfile = hyutil.get_folder_chart(appstate.selected_song_row[4])
-        record = hyutil.analyze_chart(
+        record, tempomap = hyutil.analyze_chart(
             chartfile,
             appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
             appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
-            on_analyze_parsecomplete, on_analyze_pathsprogress
+            on_analyze_parsecomplete, on_analyze_pathsprogress,
+            export_tempomap=True
         )
     except Exception as e:
         dpg.configure_item("songdetails_progresspanel", height=180)
@@ -556,7 +580,7 @@ def on_run_chart(sender, app_data, user_data):
     dpg.set_value("analyze_opt_bar", 1)
     dpg.show_item("analyze_opt_done")
     
-    appstate.hydatabook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3])
+    appstate.hydatabook.add_song(appstate.selected_song_row[0], appstate.selected_song_row[1], appstate.selected_song_row[2], appstate.selected_song_row[3], tempomap)
     appstate.hydatabook.add_record(appstate.selected_song_row[0], appstate.usettings.chartmode_key(), record)
 
     time.sleep(0.5)

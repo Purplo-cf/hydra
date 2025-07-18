@@ -225,10 +225,10 @@ class ScoreGraph:
         
         # Set E
         fillend = act_edge.dest.timecode
-        fillstart = hymisc.Timecode(fillend.ticks - fill_length_ticks, song)
+        fillstart = hymisc.Timecode(fillend.ticks - fill_length_ticks, song.tick_resolution, song.tpm_changes, song.bpm_changes)
         
         padding = fill_length_ticks + song.tick_resolution/16
-        fillstart_padded = hymisc.Timecode(fillend.ticks - padding, song)
+        fillstart_padded = hymisc.Timecode(fillend.ticks - padding, song.tick_resolution, song.tpm_changes, song.bpm_changes)
         
         fill_length_ms = fillend.ms - fillstart.ms
         raw_preroll_ms = fillend.ms - fillstart_padded.ms
