@@ -159,8 +159,8 @@ class MidiParser:
         )
         
         # Text events that are used for disco flip
-        r_disco_on_x = r'\[mix.3.drums\d?d\]'
-        r_disco_off_x = r'\[mix.3.drums\d?\]'
+        r_disco_on_x = r'\[?mix.3.drums\d?d\]?'
+        r_disco_off_x = r'\[?mix.3.drums\d?(dnoflip)?\]?'
         
         r_dynamics = r'\[?ENABLE_CHART_DYNAMICS\]?'
             
@@ -474,7 +474,7 @@ class ChartDataEntry:
             self.key_name = keystr
         
         r_disco_on_x = r'\[?mix.3.drums\d?d\]?'
-        r_disco_off_x = r'\[?mix.3.drums\d?\]?'
+        r_disco_off_x = r'\[?mix.3.drums\d?(dnoflip)?\]?'
             
         match (valuestr, valuestr.split()):
             case v, _ if self.key_tick is None:
