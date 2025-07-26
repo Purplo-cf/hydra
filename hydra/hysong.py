@@ -95,23 +95,50 @@ class Song:
     def check_activations(self):
         """ If a chart has no drum fills, add them in like Clone Hero would.
         
-        Rule: Starting with measure 2, try to add fills, half a measure long,
-        on beat 1 of measures if there's a note there. When an act
-        is successfully placed, another can't be placed for 4 measures.
+        Rule: Try to put activations on downbeats. A note needs to be within
+        1/2 beat of the downbeat. Choose the closest note and if there's a tie
+        use the later note. Activations are 1/2 measure long.
+        Whenever an activation is placed, ignore the next 3 measures.
         """
         if all(not ts.has_activation() for ts in self._sequence):
             self.features.append('Auto-Generated Fills')
-            tpm = self.tpm_changes[0]
-            lockout_end_m = 2
+            
+            # Each measure's closest note for becoming an activation fill
+            measuremap = {}
+            
+            downbeat_ref = self.start_time()
             for timestamp, pre_tpm, tpm, bpm in self:
-                measure = timestamp.timecode.measure_beats_ticks[0] + 1
-                if (
-                    timestamp.timecode.is_measure_start()
-                    and measure >= lockout_end_m
-                    and timestamp.chord
-                ):
-                    timestamp.activation_length = pre_tpm // 2
-                    lockout_end_m = measure + 4
+                if timestamp.chord is None:
+                    continue
+                # Downbeats near this chord
+                for measure in [
+                    timestamp.timecode.measure_beats_ticks[0] + 1,
+                    timestamp.timecode.measure_beats_ticks[0] + 2
+                ]:
+                    # Get the tick location of this downbeat
+                    if measure not in measuremap:
+                        downbeat_ref = downbeat_ref.plusmeasure(
+                            measure - (downbeat_ref.measure_beats_ticks[0] + 1),
+                            self
+                        )
+                        measuremap[measure] = (downbeat_ref.ticks, None, None, None)
+                    tick, best_ts, bestdist, _ = measuremap[measure]
+                    
+                    # Update the closest chord to this downbeat
+                    dist = abs(tick - timestamp.timecode.ticks)
+                    if best_ts is None or dist <= bestdist:
+                        measuremap[measure] = (tick, timestamp, dist, pre_tpm)
+
+            ACT_COOLDOWN_MEASURES = 4
+            MAX_DISTANCE = self.tick_resolution // 2
+            last_act_measure = None
+            for measure in measuremap.keys():
+                if last_act_measure is not None and measure < last_act_measure + ACT_COOLDOWN_MEASURES:
+                    continue
+                _, ts, bestdist, pre_tpm = measuremap[measure]
+                if ts is not None and bestdist <= MAX_DISTANCE:
+                    ts.activation_length = pre_tpm // 2
+                    last_act_measure = measure
 
     def start_time(self):
         return hymisc.Timecode(0, self.tick_resolution, self.tpm_changes, self.bpm_changes)
