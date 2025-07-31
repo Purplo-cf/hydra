@@ -210,13 +210,13 @@ class HyAppRecordBook:
             made_timecodes = {}
             tempomap = (info['tempomap']['res'], info['tempomap']['tpm'], info['tempomap']['bpm'])
             for record in info['records'].values():
-                for path in record.paths:
-                    for act in path.activations:
+                for path in record.all_paths():
+                    for act in path._activations:
                         if act.timecode not in made_timecodes:
                             new_tc = hymisc.Timecode(act.timecode, *tempomap)
                             made_timecodes[act.timecode] = new_tc
                         act.timecode = made_timecodes[act.timecode]
-                            
+                        
                         for bsq in act.backends:
                             if bsq.timecode not in made_timecodes:
                                 new_tc = hymisc.Timecode(bsq.timecode, *tempomap)
@@ -452,8 +452,8 @@ def on_path_selected(sender, app_data, path):
         
     with dpg.tree_node(label="Activations", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")
-        if path.activations:
-            for act in path.activations:
+        if path.has_activations():
+            for act in path.all_activations():
                 act_header = f"{act.notationstr():6}({act.sp_meter} SP)\t{act.timecode.measurestr(): >9}"
                 if (act_ms := act.difficulty()) is not None:
                     act_header += f"\t{act_ms:7.1f}ms"
@@ -771,7 +771,7 @@ def refresh_tableview():
             record = appstate.get_record(entries[r][0], appstate.usettings.chartmode_key())
             if record:
                 if record.is_version_compatible():
-                    dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label=record.paths[0].pathstring(), user_data=entries[r])
+                    dpg.configure_item(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", label=record.best_path().pathstring(), user_data=entries[r])
                     dpg.bind_item_theme(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "bestpath_theme")
                     dpg.bind_item_font(f"table[{r}, {appstate.TABLE_COLCOUNT - 1}]", "MonoFont")
                 else:
@@ -866,7 +866,8 @@ def refresh_songdetails():
             dpg.bind_item_font(dpg.last_item(), "MonoFont")
     
     any_difficulty_displayed = False
-    for i, p in enumerate(viewed_record.paths):
+    is_first_path = True
+    for p in viewed_record.all_paths():
         if current_score != p.totalscore():
             current_score = p.totalscore()
             current_treenode = dpg.add_tree_node(label=f"{current_score:,}", parent="songdetails_pathpanel", default_open=True)
@@ -876,23 +877,22 @@ def refresh_songdetails():
             dpg.add_table_column()
             dpg.add_table_column(width_fixed=True, init_width_or_weight=120)
             with dpg.table_row():
-                pathselectable = dpg.add_selectable(label=p.pathstring(), callback=on_path_selected, user_data=p, default_value=i==0, indent=16, span_columns=True)
+                pathselectable = dpg.add_selectable(label=p.pathstring(), callback=on_path_selected, user_data=p, default_value=is_first_path, indent=16, span_columns=True)
                 
                 if (diff := p.difficulty()) is not None:
                     dpg.add_selectable(label=f"{diff:9.1f}ms", callback=on_path_selected, user_data=p, default_value=False)
                     any_difficulty_displayed = True
                     if p.is_difficult():
                         dpg.bind_item_theme(dpg.last_item(), "warning_theme")
-                
-
-        if i == 0:
+        if is_first_path:
             autoselect = pathselectable
-        
+        is_first_path = False
+    
     if not any_difficulty_displayed:
         dpg.configure_item("hardestsqueeze_label", show=False)
     
     # Auto select the first path
-    on_path_selected(autoselect, True, viewed_record.paths[0])
+    on_path_selected(autoselect, True, viewed_record.best_path())
 
     
 """ Utility"""

@@ -417,23 +417,15 @@ class GraphPather:
             if cb_pathsprogress:
                 tc = paths[0].currentnode.timecode if paths[0].currentnode else None
                 cb_pathsprogress(tc, length / graph.length)
-                
         
-        # Expand variant paths
-        restored_paths = []
-        for p in paths:
-            p.data.leftover_sp = p.sp
-            p.copy_to_variants()
-            restored_paths += [v for v, _ in p.variants]
-      
-        paths += restored_paths
+        # Order the completed paths by score
+        paths.sort(key=lambda p: p.data.totalscore(), reverse=True)
         
-        # Order the completed paths by score, then activations
-        paths.sort(key=lambda p: (p.data.totalscore(), len(p.data.activations), [-a.skips for a in p.data.activations]), reverse=True)
-        
-        # Paths already built their data; add them to our hydata
+        # Finalize paths and copy from processing objects to hydata
         for path in paths:
-            self.record.paths.append(path.data)
+            path.data.leftover_sp = path.sp
+            path.data.prepare_variants()
+            self.record._paths.append(path.data)    
     
     def reduced_paths(self, paths, depth_mode, depth_value):
         """Reduce the number of paths along the way by eliminating paths
@@ -526,12 +518,10 @@ class GraphPather:
             
             if sp_diff == score_diff == 0:
                 primary, secondary = (p, q)
-                primary.variants.append((secondary, len(primary.data.activations)))
+                primary.data.variants.append(secondary.data)
+                secondary.data.var_point = len(primary.data)
                 marked_variants.add(secondary)
                 paths_to_remove.add(secondary)
-                secondary.copy_to_variants()
-                for subvariant, _ in secondary.variants:
-                    primary.variants.append((subvariant, len(primary.data.activations)))
             
             if cmp < 0:
                 better, worse = (p, q)
@@ -561,7 +551,6 @@ class GraphPath:
     def __init__(self, parent_path=None):
         if parent_path:
             self.data = parent_path.data.copy()
-            self.variants = [(GraphPath(parent_path=p), a) for p,a in parent_path.variants]
             
             self.currentnode = parent_path.currentnode
             self.sp = parent_path.sp
@@ -572,7 +561,6 @@ class GraphPath:
             self.skipped_e_offset = parent_path.skipped_e_offset
         else:
             self.data = hydata.Path()
-            self.variants = []
             
             self.currentnode = None
             self.sp = 0
@@ -581,13 +569,6 @@ class GraphPath:
             self.sp_end_time = None
             self.sp_ready_time = None
             self.skipped_e_offset = None
-
-    def copy_to_variants(self):
-        for v, a in self.variants:
-            restored = v
-            restored.data.activations += self.data.activations[a:]
-            for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts', 'notecount', 'leftover_sp']:
-                setattr(restored.data, attr, getattr(self.data, attr))
     
     # Develop along the edge that leads farther into the song.
     # Always moves a path closer to being complete, unless it's already complete.
@@ -679,7 +660,7 @@ class GraphPath:
         new_act.frontend_points = br_edge.frontend.points
         new_act.e_offset = self.skipped_e_offset if self.skipped_e_offset is not None else e_offset
         
-        new_path.data.activations.append(new_act)
+        new_path.data._activations.append(new_act)
         new_path.data.score_sp += br_edge.frontend.points
         new_path.skipped_e_offset = None
         new_path.sp_ready_time = None
@@ -700,10 +681,10 @@ class GraphPath:
         
         new_path.sp_end_time = None
         
-        new_path.data.activations[-1].backends = self.currentnode.branch_edge.backends
+        new_path.data._activations[-1].backends = self.currentnode.branch_edge.backends
         
         if is_sq_out:
-            new_path.data.activations[-1].sqinouts.append(hydata.SqOut(self.currentnode.branch_edge.sqinout_timing))
+            new_path.data._activations[-1].sqinouts.append(hydata.SqOut(self.currentnode.branch_edge.sqinout_timing))
         
         # Backend scoring adjustments
         for be in self.currentnode.branch_edge.backends:
@@ -741,7 +722,7 @@ class GraphPath:
                 return False, normal_deact
             case 'sqinout':
                 sqout_deact = self.create_deactivated_path(True)
-                self.data.activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
+                self.data._activations[-1].sqinouts.append(hydata.SqIn(br_edge.sqinout_timing))
                 self.sp_end_time = br_edge.sqin_time
                 # Avoid double-counting this SP when the path advances.
                 self.buffered_sqinout_sp = br_edge.late_sqin_count

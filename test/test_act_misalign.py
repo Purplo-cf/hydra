@@ -25,7 +25,7 @@ class TestActMisalign(unittest.TestCase):
             'expert', True, True,
             'scores', 4
         )
-        act_chord = record.paths[0].activations[0].chord
+        act_chord = record.best_path().get_activation(0).chord
         self.assertEqual(act_chord[hydata.NoteColor.GREEN] is not None, has_green)
     
     

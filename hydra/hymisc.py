@@ -161,7 +161,7 @@ class Timecode:
         self.ms += ticks_to_advance / tps * 1000
     
     def __eq__(self, other):
-        return self.ticks == other.ticks
+        return isinstance(other, Timecode) and self.ticks == other.ticks
     
     def __lt__(self, other):
         return self.ticks < other.ticks

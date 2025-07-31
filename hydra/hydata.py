@@ -13,7 +13,7 @@ def json_save(obj):
             '__obj__': 'record',
             
             'hyversion': obj.hyversion,
-            'paths': obj.paths,
+            'paths': obj._paths,
         }
     
     if isinstance(obj, Path):
@@ -21,7 +21,7 @@ def json_save(obj):
             '__obj__': 'path',
         
             'multsqueezes': obj.multsqueezes,
-            'activations': obj.activations,
+            'activations': obj._activations,
             
             'score_base': obj.score_base,
             'score_combo': obj.score_combo,
@@ -35,6 +35,9 @@ def json_save(obj):
             'leftover_sp': obj.leftover_sp,
             
             'ref_totalscore': obj.totalscore(),
+            
+            'variants': obj.variants,            
+            'var_point': obj.var_point,
         }
     
     if isinstance(obj, MultSqueeze):
@@ -123,7 +126,10 @@ def json_load(_dict):
         if not o.is_version_compatible():
             return o
         
-        o.paths = _dict['paths']
+        o._paths = _dict['paths']
+        
+        for p in o._paths:
+            p.prepare_variants()
         
         return o
     
@@ -131,7 +137,7 @@ def json_load(_dict):
         if obj_code == 'path':
             o = Path()
             o.multsqueezes = _dict['multsqueezes']
-            o.activations = _dict['activations']
+            o._activations = _dict['activations']
             
             o.score_base = _dict['score_base']
             o.score_combo = _dict['score_combo']
@@ -143,6 +149,9 @@ def json_load(_dict):
             o.notecount = _dict['notecount']
             
             o.leftover_sp = _dict['leftover_sp']
+            
+            o.variants = _dict['variants']            
+            o.var_point = _dict['var_point']
             
             return o
         
@@ -214,22 +223,27 @@ class HydraRecord:
         # Made by this version of Hydra.
         self.hyversion = hymisc.HYDRA_VERSION
         
-        # Path results.
-        self.paths = []
+        # Path results. Contains nested paths due to the variant system.
+        self._paths = []
 
     def __eq__(self, other):
-        if len(self.paths) != len(other.paths):
-            return False
-        
-        for i in range(len(self.paths)):
-            if self.paths[i] != other.paths[i]:
-                return False
-        
-        return True
+        # Not sure if deep equality is what we want here, leaving it for now
+        raise NotImplementedError
     
     def is_version_compatible(self):
         return self.hyversion == hymisc.HYDRA_VERSION
 
+    def best_path(self):
+        return self._paths[0]
+        
+    def all_paths(self):
+        """Generates all paths with tree traversal (so it visits all variants)."""
+        pathstovisit = [p for p in self._paths]
+        while pathstovisit:
+            p = pathstovisit.pop(0)
+            pathstovisit = p.variants + pathstovisit
+            yield p
+            
 
 class Path:
     """A particular combination of SP activations that was found during
@@ -242,7 +256,9 @@ class Path:
     def __init__(self):
         # Path characteristics
         self.multsqueezes = []
-        self.activations = []
+        self._activations = []
+        self.notecount = 0
+        self.leftover_sp = 0
         
         # Score breakdown categories from Clone Hero
         self.score_base = 0
@@ -252,9 +268,14 @@ class Path:
         self.score_accents = 0
         self.score_ghosts = 0
         
-        self.notecount = 0
+        # List of paths that are tied with this path; these are stored as
+        # nested paths that converge with this path at a certain point.
+        self.variants = []
         
-        self.leftover_sp = 0
+        self.var_point = None        
+        # Activations that can just be copied from this variant's base path.
+        # Not saved/loaded.
+        self._variant_tail = []
    
     def __eq__(self, other):
         for listattr in ['multsqueezes', 'activations']:
@@ -274,7 +295,37 @@ class Path:
                 return False
                 
         return True
-   
+    
+    def __str__(self):
+        return self.pathstring()
+        
+    def __len__(self):
+        return len(list(self.all_activations()))
+        
+    def has_activations(self):
+        return len(self) != 0
+        
+    def all_activations(self):
+        for act in self._activations:
+            yield act
+        for act in self._variant_tail:
+            yield act
+    
+    def get_activation(self, i):
+        return list(self.all_activations())[i]
+        
+    def is_variant(self):
+        return self.var_point is not None
+        
+    def prepare_variants(self):
+        """Recursive preparation of variants (copying the shared info from the
+        base path to its variants)."""
+        for v in self.variants:
+            v._variant_tail = list(self.all_activations())[v.var_point:]
+            for attr in ['score_base', 'score_combo', 'score_sp', 'score_solo', 'score_accents', 'score_ghosts', 'notecount', 'leftover_sp']:
+                setattr(v, attr, getattr(self, attr))
+            v.prepare_variants()
+    
     def totalscore(self):
         return (
             self.score_base + self.score_combo + self.score_sp
@@ -282,8 +333,8 @@ class Path:
         )
     
     def pathstring(self):
-        if self.activations:
-            return ' '.join([str(a.notationstr()) for a in self.activations])
+        if self.has_activations():
+            return ' '.join((str(a.notationstr()) for a in self.all_activations()))
         else:
             return "(No activations.)"
 
@@ -296,11 +347,11 @@ class Path:
         c = Path()
         
         # New list moving forward, shared previous activations
-        c.activations = [a for a in self.activations]
+        c._activations = [a for a in self._activations]
         
         # Except for the latest activation 
-        if c.activations:
-            c.activations[-1] = c.activations[-1].copy()
+        if c._activations:
+            c._activations[-1] = c._activations[-1].copy()
         
         c.multsqueezes = self.multsqueezes
         
@@ -315,16 +366,19 @@ class Path:
         
         c.leftover_sp = self.leftover_sp
         
+        c.variants = [v.copy() for v in self.variants]
+        c.var_point = self.var_point
+        
         return c
         
     def difficulty(self):
-        d_gen = (act.difficulty() for act in self.activations)
+        d_gen = (act.difficulty() for act in self.all_activations())
         diffs = [d for d in d_gen if d is not None]
         
         return max(diffs) if diffs else None
         
     def is_difficult(self):
-        return any(act.is_difficult() for act in self.activations)
+        return any(act.is_difficult() for act in self.all_activations())
 
 class Activation:
     
@@ -356,7 +410,10 @@ class Activation:
                 return False
                 
         return True
-        
+    
+    def __str__(self):
+        return self.notationstr()
+    
     def notationstr(self):
         e = 'E' if self.is_e_critical() else ''
         return f"{e}{self.skips}{''.join(sq.symbol for sq in self.sqinouts)}"

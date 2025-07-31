@@ -16,15 +16,15 @@ class TestE(unittest.TestCase):
             self.chartfolder + os.sep + chartname,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
     
     def _test_e_value(self, chartname, s_ms, act_index=0):
         path = self.best_path(chartname)
-        self.assertAlmostEqual(path.activations[act_index].e_offset, s_ms, places=5)
+        self.assertAlmostEqual(path.get_activation(act_index).e_offset, s_ms, places=5)
         
     def _test_no_e(self, chartname, act_index=0):
         path = self.best_path(chartname)
-        self.assertFalse(path.activations[act_index].is_e_critical())
+        self.assertFalse(path.get_activation(act_index).is_e_critical())
     
     def test_e_70bpm(self):
         self._test_e_value("70bpm.chart", -3750/70)

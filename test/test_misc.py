@@ -16,7 +16,7 @@ class TestMisc(unittest.TestCase):
             self.chartfolder + os.sep + chartname,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
     
     def _test_pathstr(self, chartname, s_pathstr):
         path = self.best_path(chartname)

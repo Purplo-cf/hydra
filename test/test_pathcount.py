@@ -13,13 +13,13 @@ class TestPathCount(unittest.TestCase):
     
     def _test_pathcount(self, chartname, depth, pathcount):
         chartpath = self.chartfolder + os.sep + chartname
-        paths = hyutil.analyze_chart(
+        r = hyutil.analyze_chart(
             chartpath,
             'expert', True, True,
             'scores', depth
-        ).paths
+        )
         
-        self.assertEqual(len(paths), pathcount)
+        self.assertEqual(sum(1 for p in r.all_paths()), pathcount)
     
     def test_album(self):
         self._test_pathcount('album.mid', 10, 704)

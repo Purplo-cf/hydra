@@ -17,7 +17,7 @@ class TestAverageMultiplier(unittest.TestCase):
             chartpath,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
         
         self.assertEqual(str(path.avg_mult())[:5], avgmult)
     

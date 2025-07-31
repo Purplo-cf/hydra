@@ -27,7 +27,7 @@ class TestScoring(unittest.TestCase):
             chartpath,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
         
         self.assertEqual(path.score_base, s_base)
         self.assertEqual(path.score_combo, s_combo)

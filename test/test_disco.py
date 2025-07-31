@@ -19,7 +19,7 @@ class TestDisco(unittest.TestCase):
             'scores', 4
         )
         
-        self.assertEqual(record.paths[0].totalscore(), score)
+        self.assertEqual(record.best_path().totalscore(), score)
     
     
     def test_disco_cymbals_chart(self):

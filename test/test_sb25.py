@@ -17,7 +17,7 @@ class TestSB25(unittest.TestCase):
             'scores', 4
         )
         
-        return [p for p in result.paths if p.totalscore() == result.paths[0].totalscore()]
+        return [p for p in result.all_paths() if p.totalscore() == result.best_path().totalscore()]
     
     def _test_pathstrs(self, chartname, s_pathstrs):
         paths = [p.pathstring() for p in self.best_paths(chartname)]

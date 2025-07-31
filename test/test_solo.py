@@ -17,7 +17,7 @@ class TestSolo(unittest.TestCase):
             chartpath,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
         
         self.assertEqual(path.score_solo, s_solo)
     

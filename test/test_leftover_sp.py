@@ -16,7 +16,7 @@ class TestLeftoverSP(unittest.TestCase):
             self.chartfolder + os.sep + chartname,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
     
     def _test_leftover_sp(
         self, chartname, s_leftover_sp

@@ -16,7 +16,7 @@ class TestSqinout(unittest.TestCase):
             self.chartfolder + os.sep + chartname,
             'expert', True, True,
             'scores', 4
-        ).paths[0]
+        ).best_path()
     
     def _test_scoring(
         self, chartname,
@@ -38,10 +38,10 @@ class TestSqinout(unittest.TestCase):
         s_acts
     ):
         path = self.best_path(chartname)
-        self.assertEqual(len(path.activations), len(s_acts))
+        self.assertEqual(len(path), len(s_acts))
         for i, (skip, mbt) in enumerate(s_acts):
-            self.assertEqual(path.activations[i].skips, skip)
-            self.assertEqual(path.activations[i].timecode.measurestr(), mbt)
+            self.assertEqual(path.get_activation(i).skips, skip)
+            self.assertEqual(path.get_activation(i).timecode.measurestr(), mbt)
         
     def _test_pathstr(self, chartname, s_pathstr):
         path = self.best_path(chartname)
