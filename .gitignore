@@ -12,3 +12,4 @@ records.json
 
 # Local utility scripts, anything else
 local/*
+hydra.code-workspace
