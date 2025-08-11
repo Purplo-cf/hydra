@@ -17,12 +17,16 @@ if __name__ == "__main__":
     book = {}
     
     charts_root = sys.argv[1]
+    
+    if not isinstance(charts_root, list):
+        charts_root = [charts_root]
+    
     charts = hyutil.discover_charts(charts_root)[0]
     
     print(f"\nFound {len(charts)} charts in '{charts_root}'.\n")
     
     records_count = 0
-    for chartfile, inifile, dirname in charts:
+    for chartfile, inifile, dirname, _subfolder in charts:
         print(f"{chartfile}")
         
         hyhash, name, artist, charter, path, folder = hyutil.get_rowvalues(

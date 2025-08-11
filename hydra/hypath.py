@@ -383,7 +383,7 @@ class GraphPather:
     def __init__(self):
         self.record = hydata.HydraRecord()
         
-    def read(self, graph, depth_mode, depth_value, cb_pathsprogress=None):
+    def read(self, graph, depth_mode, depth_value, ms_filter, cb_pathsprogress=None):
         paths = [GraphPath()]
         paths[0].currentnode = graph.start
         length = 0
@@ -411,7 +411,7 @@ class GraphPather:
                     new_paths.append(branchpath)
                 
             # Update the path list with branching results
-            paths = self.reduced_paths(new_paths, depth_mode, depth_value)
+            paths = self.reduced_paths(new_paths, depth_mode, depth_value, ms_filter)
         
             length += 1
             if cb_pathsprogress:
@@ -427,7 +427,7 @@ class GraphPather:
             path.data.prepare_variants()
             self.record._paths.append(path.data)    
     
-    def reduced_paths(self, paths, depth_mode, depth_value):
+    def reduced_paths(self, paths, depth_mode, depth_value, ms_filter):
         """Reduce the number of paths along the way by eliminating paths
         that are definitely not as good as another path.
         
@@ -442,6 +442,8 @@ class GraphPather:
             'points': Keep paths within {depth_value} points of optimal.
             'scores': Keep paths for {depth_value} scores below optimal.
         
+        ms_filter: Remove paths that have timing requirements more difficult
+        than this millisecond value.
         """
         # Since all the paths are at the same point in the song, the only
         # thing that can make 2 paths not comparable is SP: SP represents
@@ -456,6 +458,14 @@ class GraphPather:
         # Both Inactive SP: Score and SP value comparisons must not contradict.
         # Different SP Active: Not comparable
 
+        filtered_paths = set()
+        paths_to_remove = set()
+        
+        if ms_filter is not None:
+            for p in paths:
+                if not p.data.passes_ms_filter(ms_filter):
+                    filtered_paths.add(p)
+        
         # Separate active SP and inactive SP paths
         # Reduces amount of obviously ineffective comparisons in a sec
         pathgroups = {
@@ -465,11 +475,10 @@ class GraphPather:
         for p in paths:
             # Don't consider paths that recently SqIn/SqOuted as they have
             # interacted with an SP phrase earlier than other paths.
-            if p.buffered_sqinout_sp == 0:
+            if p.buffered_sqinout_sp == 0 and p not in paths_to_remove:
                 pathgroups[p.is_active_sp()].append(p)                
         
         worsethan_scores = {p: set() for p in paths}
-        paths_to_remove = set()
         
         for p, q in combinations(pathgroups[True], 2):
             # Active SP paths: Compare score only if SP is the same
@@ -484,14 +493,19 @@ class GraphPather:
             else:
                 continue
                 
-            if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
+            if worse in filtered_paths:
                 paths_to_remove.add(worse)
-            
-            if depth_mode == 'scores':
-                worsethan_scores[worse].add(better.data.totalscore())
-                if len(worsethan_scores[worse]) > depth_value:
+                continue
+                
+            if depth_mode == 'points':
+                if better not in filtered_paths and worse.data.totalscore() + depth_value < better.data.totalscore():
                     paths_to_remove.add(worse)
-        
+            elif depth_mode == 'scores':
+                if better not in filtered_paths:
+                    worsethan_scores[worse].add(better.data.totalscore())
+                    if len(worsethan_scores[worse]) > depth_value:
+                        paths_to_remove.add(worse)
+            
         marked_variants = set()
         for p, q in combinations(pathgroups[False], 2):
             # Inactive SP paths: Compare both SP meter and score.
@@ -517,12 +531,21 @@ class GraphPather:
                 cmp -= 1
             
             if sp_diff == score_diff == 0:
-                primary, secondary = (p, q)
-                primary.data.variants.append(secondary.data)
-                secondary.data.var_point = len(primary.data)
-                marked_variants.add(secondary)
-                paths_to_remove.add(secondary)
-            
+                # The two paths have converged at this point and any further
+                # pathing will affect them identically
+                if p not in filtered_paths and q not in filtered_paths:
+                    # Variants - p will continue analysis and q will become a variant
+                    p.data.variants.append(q.data)
+                    q.data.var_point = len(p.data)
+                    marked_variants.add(q)
+                    paths_to_remove.add(q)                
+                elif p in filtered_paths and q in filtered_paths:
+                    # Tie of filtered paths - one will be kept just in case it's optimal
+                    paths_to_remove.add(q)
+                else:
+                    # One filtered and one not - Keep the one that passes
+                    paths_to_remove.add(p if p in filtered_paths else q)
+                
             if cmp < 0:
                 better, worse = (p, q)
             elif cmp > 0:
@@ -530,14 +553,19 @@ class GraphPather:
             else:
                 continue
                 
-            if depth_mode == 'points' and worse.data.totalscore() + depth_value < better.data.totalscore():
+            if worse in filtered_paths:
                 paths_to_remove.add(worse)
+                continue
                 
-            if depth_mode == 'scores':
-                worsethan_scores[worse].add(better.data.totalscore())
-                if len(worsethan_scores[worse]) > depth_value:
-                    paths_to_remove.add(worse)
-        
+            if depth_mode == 'points':
+                if better not in filtered_paths and worse.data.totalscore() + depth_value < better.data.totalscore():
+                    paths_to_remove.add(worse)   
+            elif depth_mode == 'scores':
+                if better not in filtered_paths:
+                    worsethan_scores[worse].add(better.data.totalscore())
+                    if len(worsethan_scores[worse]) > depth_value:
+                        paths_to_remove.add(worse)
+            
         return [p for p in paths if p not in paths_to_remove]
         
 class GraphPath:

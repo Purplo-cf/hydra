@@ -125,6 +125,7 @@ def analyze_chart(
     filepath,
     m_difficulty, m_pro, m_bass2x,
     d_mode, d_value,
+    ms_filter=None,
     cb_parsecomplete=None, cb_pathsprogress=None,
     export_tempomap=False
 ):
@@ -151,7 +152,7 @@ def analyze_chart(
     
     # Use score graph to run the paths
     pather = hypath.GraphPather()
-    pather.read(graph, d_mode, d_value, cb_pathsprogress)
+    pather.read(graph, d_mode, d_value, ms_filter, cb_pathsprogress)
     
     if export_tempomap:
         tempo_map = {

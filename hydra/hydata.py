@@ -379,6 +379,9 @@ class Path:
         
     def is_difficult(self):
         return any(act.is_difficult() for act in self.all_activations())
+    
+    def passes_ms_filter(self, ms_filter):
+        return (d := self.difficulty()) is None or d < ms_filter
 
 class Activation:
     
