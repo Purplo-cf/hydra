@@ -503,15 +503,17 @@ def on_path_selected(sender, app_data, path):
                             dpg.add_text("Backends:")
                             
                             with dpg.table(width=-10, borders_outerH=True, borders_outerV=True):
-                                for bsq_colname in ["Timing", "Chord", "Points", "Rating"]:
-                                    dpg.add_table_column(label=bsq_colname)
+                                dpg.add_table_column(label="Timing", width_fixed=True, init_width_or_weight=80)
+                                dpg.add_table_column(label="Chord", width_fixed=True, init_width_or_weight=80)
+                                dpg.add_table_column(label="Points", width_fixed=True, init_width_or_weight=80)
+                                dpg.add_table_column(label="Rating", width_stretch=True)
                                     
                                 for bsq in act.backends:
                                     with dpg.table_row():
                                         dpg.add_text(f"{bsq.offset_ms:6.1f}")
                                         dpg.add_text(f"{bsq.chord.notationstr()}")
                                         dpg.add_text(f"{bsq.points:4,d}")
-                                        dpg.add_text(f"{bsq.ratingstr()}")
+                                        dpg.add_text(f"{bsq.summarystr()}")
                         else:
                             dpg.add_text("Backends: None.")
                         dpg.add_spacer(height=16)

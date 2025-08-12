@@ -680,7 +680,31 @@ class BackendSqueeze:
                 return False
                 
         return True
-        
+    
+    def summarystr(self):
+        if self.is_sp:
+            if self.offset_ms < -70:
+                return "Insane SqOut"
+            elif self.offset_ms < -10:
+                return "Hard SqOut"
+            elif self.offset_ms < 10:
+                return "Standard SqOut"
+            elif self.offset_ms < 70:
+                return "Easy SqOut"
+            else:
+                return "Free SqOut"
+        else:
+            if self.offset_ms < -70:
+                return "Free"
+            elif self.offset_ms < -10:
+                return "Easy"
+            elif self.offset_ms < 3:
+                return "Standard"
+            elif self.offset_ms < 70:
+                return "Hard (uncounted)"
+            else:
+                return "Insane (uncounted)"
+    
     def ratingstr(self):
         """Hydra ratings for how hard the squeeze's timing is."""
         thresholds = [
