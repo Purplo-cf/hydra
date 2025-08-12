@@ -13,6 +13,7 @@ def json_save(obj):
             '__obj__': 'record',
             
             'hyversion': obj.hyversion,
+            'ms': obj.ms_limit,
             'paths': obj._paths,
         }
     
@@ -126,6 +127,7 @@ def json_load(_dict):
         if not o.is_version_compatible():
             return o
         
+        o.ms_limit = _dict['ms']
         o._paths = _dict['paths']
         
         for p in o._paths:
@@ -222,6 +224,8 @@ class HydraRecord:
     def __init__(self):   
         # Made by this version of Hydra.
         self.hyversion = hymisc.HYDRA_VERSION
+        
+        self.ms_limit = None
         
         # Path results. Contains nested paths due to the variant system.
         self._paths = []

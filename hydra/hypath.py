@@ -384,6 +384,7 @@ class GraphPather:
         self.record = hydata.HydraRecord()
         
     def read(self, graph, depth_mode, depth_value, ms_filter, cb_pathsprogress=None):
+        self.record.ms_limit = ms_filter
         paths = [GraphPath()]
         paths[0].currentnode = graph.start
         length = 0
@@ -533,19 +534,13 @@ class GraphPather:
             if sp_diff == score_diff == 0:
                 # The two paths have converged at this point and any further
                 # pathing will affect them identically
-                if p not in filtered_paths and q not in filtered_paths:
+                if (p in filtered_paths) == (q in filtered_paths):
                     # Variants - p will continue analysis and q will become a variant
                     p.data.variants.append(q.data)
                     q.data.var_point = len(p.data)
                     marked_variants.add(q)
                     paths_to_remove.add(q)                
-                elif p in filtered_paths and q in filtered_paths:
-                    # Tie of filtered paths - one will be kept just in case it's optimal
-                    paths_to_remove.add(q)
-                else:
-                    # One filtered and one not - Keep the one that passes
-                    paths_to_remove.add(p if p in filtered_paths else q)
-                
+            
             if cmp < 0:
                 better, worse = (p, q)
             elif cmp > 0:

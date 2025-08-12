@@ -50,18 +50,20 @@ class TestSB25Filter(unittest.TestCase):
                 )
                 
                 # First path (top score) is unchanged by filtering
-                self.assertEqual(
-                    full_record.best_path().pathstring(),
-                    filter_record.best_path().pathstring()
-                )
+                best_score = full_record.best_path().totalscore()
+                full_opts = list(filter(lambda x: x.totalscore() == best_score, full_record.all_paths()))
+                filt_opts = list(filter(lambda x: x.totalscore() == best_score, filter_record.all_paths()))
+                self.assertEqual(len(full_opts), len(filt_opts))
+                for i in range(len(full_opts)):
+                    self.assertEqual(full_opts[i].pathstring(), filt_opts[i].pathstring())
                 
                 # Tracing through the full record in order and collecting paths
                 # that pass the filter recreates the filter record
                 filter_paths = list(filter_record.all_paths())
-                filter_i = 1
+                filter_i = len(full_opts)
                 lastscore = filter_record.best_path().totalscore()
                 scorelevel = 0
-                for p in list(full_record.all_paths())[1:]:
+                for p in list(full_record.all_paths())[len(full_opts):]:
                     if p.passes_ms_filter(ms_filter):
                         if p.totalscore() != lastscore:
                             self.assertLess(p.totalscore(), lastscore)

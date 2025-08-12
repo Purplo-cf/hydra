@@ -117,6 +117,8 @@ class HyAppUserSettings:
     view_bass2x = HyAppUserSetting(astype='bool')
     depth_value = HyAppUserSetting()
     depth_mode = HyAppUserSetting()
+    mslimit_enabled = HyAppUserSetting(astype='bool')
+    mslimit_value = HyAppUserSetting()
     
     def __init__(self):
         # Load setting values from config
@@ -145,6 +147,8 @@ class HyAppUserSettings:
             ('view_bass2x', 'True'),
             ('depth_value', '4'),
             ('depth_mode', 'scores'),
+            ('mslimit_enabled', 'True'),
+            ('mslimit_value', '10')
         ]:
             if key not in loadedsettings:
                 loadedsettings[key] = default
@@ -362,6 +366,21 @@ def on_depth_value(sender, app_data):
 
 def on_depth_mode(sender, app_data):
     appstate.usettings.depth_mode = app_data
+
+def on_mslimit_check(sender, app_data, user_data):
+    appstate.usettings.mslimit_enabled = app_data
+    refresh_mslimit_check()
+    
+def on_mslimit_value(sender, app_data, user_data):
+    appstate.usettings.mslimit_value = app_data
+
+def refresh_mslimit_check():
+    dpg.configure_item("inp_mslimit", enabled=appstate.usettings.mslimit_enabled)
+    dpg.bind_item_theme("mslimit_mstext", "default_theme" if appstate.usettings.mslimit_enabled else "disabled_text")
+
+def init_mslimit_state():
+    dpg.set_value("mslimit_check", appstate.usettings.mslimit_enabled)
+    dpg.set_value("inp_mslimit", int(appstate.usettings.mslimit_value))
     
 def on_scan():
     reset_scan_modal()
@@ -565,6 +584,7 @@ def on_run_chart(sender, app_data, user_data):
             chartfile,
             appstate.usettings.view_difficulty, appstate.usettings.view_prodrums, appstate.usettings.view_bass2x,
             appstate.usettings.depth_mode, int(appstate.usettings.depth_value),
+            int(appstate.usettings.mslimit_value) if appstate.usettings.mslimit_enabled else None,
             on_analyze_parsecomplete, on_analyze_pathsprogress,
             export_tempomap=True
         )
@@ -647,6 +667,8 @@ def view_main():
     
     refresh_depthvalue()
     refresh_depthmode()
+    init_mslimit_state()
+    refresh_mslimit_check()
     
     
 def view_showsongdetails():
@@ -855,41 +877,36 @@ def refresh_songdetails():
     appstate.current_path_copytext = None
     
     current_score = None 
+    current_score_tier = 0
     current_treenode = None
     
-    with dpg.table(parent="songdetails_pathpanel", header_row=False):
-        dpg.add_table_column()
-        dpg.add_table_column(width_fixed=True, init_width_or_weight=140)
-        with dpg.table_row():
-            dpg.add_spacer(height=0)
-            dpg.add_text("Hardest +/-/E0", tag="hardestsqueeze_label")
-            dpg.bind_item_font(dpg.last_item(), "MonoFont")
     
-    any_difficulty_displayed = False
     is_first_path = True
     for p in viewed_record.all_paths():
         if current_score != p.totalscore():
+            current_score_tier += 1
+            if current_score_tier == 1:
+                dpg.add_separator(parent="songdetails_pathpanel", label="Optimal Path")
+            elif current_score_tier == 2:
+                ep_suffix = "" if viewed_record.ms_limit is None else f" (Limit timings: {viewed_record.ms_limit} ms)"
+                dpg.add_separator(parent="songdetails_pathpanel", label=f"More Paths{ep_suffix}")
             current_score = p.totalscore()
             current_treenode = dpg.add_tree_node(label=f"{current_score:,}", parent="songdetails_pathpanel", default_open=True)
             dpg.bind_item_font(current_treenode, "MonoFont")
         
         with dpg.table(parent=current_treenode, header_row=False):
             dpg.add_table_column()
-            dpg.add_table_column(width_fixed=True, init_width_or_weight=120)
+            dpg.add_table_column(width_fixed=True, init_width_or_weight=130)
             with dpg.table_row():
                 pathselectable = dpg.add_selectable(label=p.pathstring(), callback=on_path_selected, user_data=p, default_value=is_first_path, indent=16, span_columns=True)
                 
                 if (diff := p.difficulty()) is not None:
-                    dpg.add_selectable(label=f"{diff:9.1f}ms", callback=on_path_selected, user_data=p, default_value=False)
-                    any_difficulty_displayed = True
+                    dpg.add_selectable(label=f"{diff:9.1f} ms", callback=on_path_selected, user_data=p, default_value=False)
                     if p.is_difficult():
                         dpg.bind_item_theme(dpg.last_item(), "warning_theme")
         if is_first_path:
             autoselect = pathselectable
         is_first_path = False
-    
-    if not any_difficulty_displayed:
-        dpg.configure_item("hardestsqueeze_label", show=False)
     
     # Auto select the first path
     on_path_selected(autoselect, True, viewed_record.best_path())
@@ -940,14 +957,18 @@ def build_main_ui():
             dpg.add_theme_color(dpg.mvThemeCol_Button, (0, 150, 150))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (0, 180, 180))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (0, 200, 200))
-
-            
+        
         with dpg.theme_component(dpg.mvButton, enabled_state=False):
             dpg.add_theme_color(dpg.mvThemeCol_Text, (200, 200, 200))
             dpg.add_theme_color(dpg.mvThemeCol_Button, (100, 100, 100))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (100, 100, 100))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (100, 100, 100))
-            
+        
+        with dpg.theme_component(dpg.mvInputInt, enabled_state=False):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (50, 50, 50))
+            dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (40, 40, 40))
+            dpg.add_theme_color(dpg.mvThemeCol_Button, (40, 40, 40))            
+        
         with dpg.theme_component(dpg.mvAll):
             dpg.add_theme_color(dpg.mvThemeCol_TitleBgActive, (100, 0, 0))
             dpg.add_theme_color(dpg.mvThemeCol_CheckMark, (0, 180, 180))
@@ -982,6 +1003,10 @@ def build_main_ui():
             dpg.add_theme_color(dpg.mvThemeCol_Button, (180, 5, 5))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonHovered, (250, 50, 50))
             dpg.add_theme_color(dpg.mvThemeCol_ButtonActive, (250, 100, 100))
+
+    with dpg.theme(tag="disabled_text"):
+        with dpg.theme_component(dpg.mvAll):
+            dpg.add_theme_color(dpg.mvThemeCol_Text, (50,50,50))
 
     dpg.bind_theme(standard_theme)
     
@@ -1076,13 +1101,19 @@ def build_main_ui():
                         dpg.add_spacer(height=2)
                         dpg.add_text("Hash", tag="songdetails_songhash", color=(180,180,180,255))
                     dpg.bind_item_font(dpg.last_item(), "MonoFont")
-            with dpg.child_window(tag="songdetails_songanalysis", width=340):
+            with dpg.child_window(tag="songdetails_songanalysis", width=400):
                 dpg.add_text("/// Space for future stuff! ///") # Song Traits?
             with dpg.child_window(tag="songdetails_controls", width=-1):
+                dpg.add_separator(label="More Paths settings")
                 with dpg.group(horizontal=True):
-                    dpg.add_text("Extra depth below optimal:")
-                    dpg.add_input_int(tag="inp_depthvalue", min_value=0, min_clamped=True, width=140, default_value=1, callback=on_depth_value)
+                    dpg.add_text(" Score range:")
+                    dpg.add_input_int(tag="inp_depthvalue", indent=100, min_value=0, min_clamped=True, width=140, default_value=1, callback=on_depth_value)
                     dpg.add_combo(("scores", "points"), tag="inp_depthmode", default_value="scores", width=80, callback=on_depth_mode)
+                with dpg.group(horizontal=True):
+                    dpg.add_text(" Limit timings:")
+                    dpg.add_checkbox(tag="mslimit_check", indent=100, callback=on_mslimit_check)
+                    dpg.add_input_int(tag="inp_mslimit", indent=140, min_value=-200, min_clamped=True, max_value=200, max_clamped=True, width=100, default_value=0, callback=on_mslimit_value)
+                    dpg.add_text("ms", tag="mslimit_mstext")
                 dpg.add_spacer(height=0)
                 dpg.add_button(tag="runbutton", label="Analyze paths!", width=-1,height=-1, callback=on_run_chart)
                 dpg.bind_item_font(dpg.last_item(), "MainFont24")
