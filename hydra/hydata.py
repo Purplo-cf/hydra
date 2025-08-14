@@ -34,6 +34,8 @@ def json_save(obj):
             'notecount': obj.notecount,
             
             'leftover_sp': obj.leftover_sp,
+            'sk_gho': obj.skipped_ghosts,
+            'sk_acc': obj.skipped_accents,
             
             'ref_totalscore': obj.totalscore(),
             
@@ -151,6 +153,8 @@ def json_load(_dict):
             o.notecount = _dict['notecount']
             
             o.leftover_sp = _dict['leftover_sp']
+            o.skipped_ghosts = _dict['sk_gho']
+            o.skipped_accents = _dict['sk_acc']
             
             o.variants = _dict['variants']            
             o.var_point = _dict['var_point']
@@ -263,6 +267,8 @@ class Path:
         self._activations = []
         self.notecount = 0
         self.leftover_sp = 0
+        self.skipped_ghosts = 0
+        self.skipped_accents = 0
         
         # Score breakdown categories from Clone Hero
         self.score_base = 0
@@ -369,6 +375,8 @@ class Path:
         c.notecount = self.notecount
         
         c.leftover_sp = self.leftover_sp
+        c.skipped_ghosts = self.skipped_ghosts
+        c.skipped_accents = self.skipped_accents
         
         c.variants = [v.copy() for v in self.variants]
         c.var_point = self.var_point
@@ -998,3 +1006,14 @@ class Chord:
         assert(self[color] is not None)
         self[color].dynamictype = NoteDynamicType.ACCENT
 
+    def activation_note(self):
+        for c in [
+            NoteColor.GREEN,
+            NoteColor.BLUE,
+            NoteColor.YELLOW,
+            NoteColor.RED,
+            NoteColor.KICK,
+        ]:
+            if (note := self[c]) is not None:
+                return note
+        raise ValueError

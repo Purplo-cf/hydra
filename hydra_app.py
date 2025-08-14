@@ -525,6 +525,15 @@ def on_path_selected(sender, app_data, path):
         # a possibility.
         dpg.add_text(f"Leftover SP: {path.leftover_sp}.")
         dpg.bind_item_font(dpg.last_item(), "MonoFont")
+        
+        if path.skipped_accents > 0:
+            dpg.add_text(f"This path has {path.skipped_accents} skipped (unhittable) accent{"" if path.skipped_accents == 1 else "s"}!")
+            dpg.bind_item_font(dpg.last_item(), "MonoFont")
+            dpg.bind_item_theme(dpg.last_item(), "warning_theme")
+        if path.skipped_ghosts > 0:
+            dpg.add_text(f"This path has {path.skipped_ghosts} skipped (unhittable) ghost{"" if path.skipped_ghosts == 1 else "s"}!")
+            dpg.bind_item_font(dpg.last_item(), "MonoFont")
+            dpg.bind_item_theme(dpg.last_item(), "warning_theme")
     
     with dpg.tree_node(label="Score breakdown", parent="songdetails_pathdetails", default_open=True):
         dpg.bind_item_font(dpg.last_item(), "MainFont24")

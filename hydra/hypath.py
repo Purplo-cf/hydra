@@ -102,7 +102,7 @@ class ScoreGraph:
             # handle acts            
             if timestamp.has_activation():
                 self.advance_tracks(timestamp.timecode, timestamp.chord)
-                self.add_act_edge(timestamp.chord, score_groups['sp'], timestamp.activation_length, song)
+                self.add_act_edge(timestamp.chord, score_groups['sp'], score_groups['skipped_dynamic_reduction'], timestamp.activation_length, song)
                 
                 self._pending_deacts.add(timestamp.timecode.plusmeasure(4, song))
                 self._pending_deacts.add(timestamp.timecode.plusmeasure(6, song))
@@ -209,7 +209,7 @@ class ScoreGraph:
         self._base_track_head = self._base_track_head.adv_edge.dest
         self._sp_track_head = self._sp_track_head.adv_edge.dest
     
-    def add_act_edge(self, frontend_chord, frontend_points, fill_length_ticks, song):
+    def add_act_edge(self, frontend_chord, frontend_points, skipped_dynamic_reduction, fill_length_ticks, song):
         act_edge = ScoreGraphEdge()
         act_edge.dest = self._sp_track_head
         
@@ -236,6 +236,9 @@ class ScoreGraph:
         act_edge.activation_fill_deadline_ms = fillend.ms - fill_length_ms - preroll_ms
         
         act_edge.activation_initial_end_times = {sp: fillend.plusmeasure(2 * sp, song) for sp in [2, 3, 4]}
+        
+        act_edge.skipped_dynamic_points = skipped_dynamic_reduction
+        
         self._base_track_head.branch_edge = act_edge
     
     def add_deact_edge(self):
@@ -691,6 +694,14 @@ class GraphPath:
         
         self.currentskips += 1
         
+        if br_edge.frontend.chord.activation_note().is_accent():
+            self.data.score_accents -= br_edge.skipped_dynamic_points
+            self.data.skipped_accents += 1
+            
+        if br_edge.frontend.chord.activation_note().is_ghost():
+            self.data.score_ghosts -= br_edge.skipped_dynamic_points
+            self.data.skipped_ghosts += 1
+        
         # Even if the E fill is skipped, the eventual activation should know about it
         if self.skipped_e_offset is None:
             self.skipped_e_offset = e_offset
@@ -799,6 +810,10 @@ def category_scores(chord, combo):
     # How many points to subtract if this chord is a SqOut
     sqout_reduction = 0
     
+    # How many points to subtract if this chord is an activation chord
+    # that gets skipped (the activation note cannot get its dynamic points)
+    skipped_dynamic_reduction = 0
+    
     ordering = chord.notes(basesorted=True)
     initial_combo_mult = hymisc.to_multiplier(combo)
     
@@ -830,7 +845,15 @@ def category_scores(chord, combo):
         # Quick and dirty SqOut calculation
         if i == 0:
             sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
-                
+        
+        if note == chord.activation_note() and note.is_dynamic():
+            skipped_dynamic_reduction = (                
+                basevalue
+                + (cymbvalue if note.is_cymbal() else 0)
+                + basevalue * (combo_multiplier - 1)
+                + (cymbvalue * (combo_multiplier - 1) if note.is_cymbal() else 0)
+            )
+        
     return {
         'base': points_by_source['base_note'] + points_by_source['base_cymbal'] + points_by_source['dynamic_cymbal'],    
         'combo': points_by_source['combo_note'] + points_by_source['combo_cymbal'] + points_by_source['combodynamic_note'] + points_by_source['combodynamic_cymbal'],
@@ -838,5 +861,6 @@ def category_scores(chord, combo):
         'accent': points_by_source['dynamic_note_accent'],
         'ghost': points_by_source['dynamic_note_ghost'],
         'sqout_reduction': sqout_reduction,
+        'skipped_dynamic_reduction': skipped_dynamic_reduction
     }
     
