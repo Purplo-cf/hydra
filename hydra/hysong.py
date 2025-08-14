@@ -163,6 +163,7 @@ class MidiParser:
         self._fill_start_tick = None
         self._fill_end_tick = None
         self._dynamics_enabled = None
+        self._sp_start_tick = None
 
     def optype(self, msg, tick):
         """Parses individual midi messages into the actual actions the parser
@@ -204,13 +205,13 @@ class MidiParser:
             case mido.MetaMessage(type='time_signature'):
                 return ('time', self.op_timesig, tick, msg.numerator, msg.denominator)
             case mido.Message(note=120) if is_noteon:
-                return ('pre', self.op_fillstart, tick)
+                return ('post-delayed', self.op_fillstart, tick)
             case mido.Message(note=120) if is_noteoff:
                 return ('pre', self.op_store_fillend, tick)
             case mido.Message(note=116) if is_noteon:
-                return ('pre', self.op_sp_start, tick)
+                return ('pre' if self._sp_start_tick is None else 'pre-delayed', self.op_sp_start, tick)
             case mido.Message(note=116) if is_noteoff:
-                return ('pre', self.op_sp_end)
+                return ('pre-delayed' if self._sp_start_tick is None else 'pre', self.op_sp_end)
             case mido.Message(note=112) if is_noteon:
                 return ('pre', self.op_tom, hydata.NoteColor.GREEN, hydata.NoteCymbalType.NORMAL)
             case mido.Message(note=112) if is_noteoff:
@@ -305,11 +306,13 @@ class MidiParser:
             latest_note = self.song[-1]
         except IndexError:
             # SP phrase, but there hasn't been a single note yet.
+            self._sp_start_tick = None
             return
             
         if latest_note.timecode.ticks >= self._sp_start_tick:
             # Double check that latest note is recent enough to be in the SP
             latest_note.flag_sp = True
+        self._sp_start_tick = None
     
     def op_tom(self, color, cymbal):
         self._flag_cymbals[color] = cymbal
@@ -339,7 +342,7 @@ class MidiParser:
         ops = [self.optype(msg, tick) for msg in self._msg_buffer]
         
         # Prepare notes (not added yet)
-        for phase in ['pre', 'notes']:
+        for phase in ['pre', 'pre-delayed', 'notes']:
             for op_phase, op, *op_args in ops:
                 if op_phase == phase:
                     try:
@@ -391,12 +394,13 @@ class MidiParser:
             self._chord = None
             
         # Parsed actions that apply after the timestamp
-        for op_phase, op, *op_args in ops:
-                if op_phase == 'post':
-                    try:
-                        op(*op_args)
-                    except hymisc.ChartFileError:
-                        pass
+        for phase in ['post', 'post-delayed']:
+            for op_phase, op, *op_args in ops:
+                    if op_phase == phase:
+                        try:
+                            op(*op_args)
+                        except hymisc.ChartFileError:
+                            pass
             
         self._msg_buffer = []
     
@@ -653,7 +657,7 @@ class ChartParser:
             case ChartDataEntry(phrasevalue=2, phraselength=length):
                 return ('pre', self.op_sp_start, tick, tick + length)
             case ChartDataEntry(phrasevalue=64, phraselength=length):
-                return ('pre', self.op_fillstart, tick, tick + length)
+                return ('post-delayed', self.op_fillstart, tick, tick + length)
             case _:
                 return (None, None)
     
@@ -693,11 +697,13 @@ class ChartParser:
             latest_note = self.song[-1]
         except IndexError:
             # SP phrase, but there hasn't been a single note yet.
+            self._sp_end_tick = None
             return
         
         if latest_note.timecode.ticks >= starttick:
             # Double check that latest note is recent enough to be in the SP
             latest_note.flag_sp = True
+        self._sp_end_tick = None
     
     def op_solo(self, is_on):
         self._flag_solo = is_on
@@ -739,8 +745,7 @@ class ChartParser:
         
         # Phrase end: SP 
         if self._sp_end_tick is not None and tick >= self._sp_end_tick:
-            ops.append(('pre', self.op_sp_end, self._sp_start_tick))
-            self._sp_end_tick = None
+            ops.insert(0, ('pre', self.op_sp_end, self._sp_start_tick))
         
         # Phrase end: Activation (waits until a timestamp with a chord)
         if self._chord.count() and self._fill_end_tick is not None and tick >= self._fill_end_tick:
@@ -786,12 +791,13 @@ class ChartParser:
             self._chord = None
             
         # Parsed actions that apply after the timestamp
-        for op_phase, op, *op_args in ops:
-            if op_phase == 'post':
-                try:
-                    op(*op_args)
-                except hymisc.ChartFileError:
-                    pass
+        for phase in ['post', 'post-delayed']:
+            for op_phase, op, *op_args in ops:
+                if op_phase == phase:
+                    try:
+                        op(*op_args)
+                    except hymisc.ChartFileError:
+                        pass
         
     def parsefile(self, filename, m_difficulty, m_pro, m_bass2x):
         """After this function, self.song will be ready.

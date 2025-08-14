@@ -24,8 +24,8 @@ class TestMisc(unittest.TestCase):
         
     def _test_optimal(self, chartname, s_score, geq=False):
         """geq: Test passes if Hydra's optimal score is greater or equal than
-        the test value. Useful if the test value comes from a real score, but
-        isn't confirmed to be optimal."""
+        the test value. Useful if there's a best known score, but it isn't
+        confirmed to be optimal."""
         path = self.best_path(chartname)
         if geq:
             self.assertGreaterEqual(path.totalscore(), s_score)
@@ -43,3 +43,6 @@ class TestMisc(unittest.TestCase):
         
     def test_score_deathking(self):
         self._test_optimal("deathking.mid", 261200, geq=True)
+
+    def test_score_flamesbut(self):
+        self._test_optimal("flamesbut.mid", 216775, geq=True)
