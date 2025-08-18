@@ -12,7 +12,7 @@ For sanity reasons, records with a version that doesn't match completely
 will not be supported and the app will just ask the user to re-analyze them.
 
 """
-HYDRA_VERSION = (1,1,1)
+HYDRA_VERSION = (1,2,0)
 
 
 """Static paths and files"""
