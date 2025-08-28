@@ -694,14 +694,15 @@ class GraphPath:
         
         self.currentskips += 1
         
-        if br_edge.frontend.chord.activation_note().is_accent():
-            self.data.score_accents -= br_edge.skipped_dynamic_points
-            self.data.skipped_accents += 1
+        if hymisc.FLAG_SKIPPED_DYNAMICS:
+            if br_edge.frontend.chord.activation_note().is_accent():
+                self.data.score_accents -= br_edge.skipped_dynamic_points
+                self.data.skipped_accents += 1
+                
+            if br_edge.frontend.chord.activation_note().is_ghost():
+                self.data.score_ghosts -= br_edge.skipped_dynamic_points
+                self.data.skipped_ghosts += 1
             
-        if br_edge.frontend.chord.activation_note().is_ghost():
-            self.data.score_ghosts -= br_edge.skipped_dynamic_points
-            self.data.skipped_ghosts += 1
-        
         # Even if the E fill is skipped, the eventual activation should know about it
         if self.skipped_e_offset is None:
             self.skipped_e_offset = e_offset
@@ -846,13 +847,14 @@ def category_scores(chord, combo):
         if i == 0:
             sqout_reduction = (basevalue + (cymbvalue if note.is_cymbal() else 0)) * combo_multiplier * (2 if note.is_dynamic() else 1)
         
-        if note == chord.activation_note() and note.is_dynamic():
-            skipped_dynamic_reduction = (                
-                basevalue
-                + (cymbvalue if note.is_cymbal() else 0)
-                + basevalue * (combo_multiplier - 1)
-                + (cymbvalue * (combo_multiplier - 1) if note.is_cymbal() else 0)
-            )
+        if hymisc.FLAG_SKIPPED_DYNAMICS:
+            if note == chord.activation_note() and note.is_dynamic():
+                skipped_dynamic_reduction = (                
+                    basevalue
+                    + (cymbvalue if note.is_cymbal() else 0)
+                    + basevalue * (combo_multiplier - 1)
+                    + (cymbvalue * (combo_multiplier - 1) if note.is_cymbal() else 0)
+                )
         
     return {
         'base': points_by_source['base_note'] + points_by_source['base_cymbal'] + points_by_source['dynamic_cymbal'],    

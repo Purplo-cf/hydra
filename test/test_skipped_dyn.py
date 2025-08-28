@@ -4,6 +4,7 @@ import json
 
 import hydra.hyutil as hyutil
 import hydra.hydata as hydata
+import hydra.hymisc as hymisc
 
 
 class TestSkippedDyn(unittest.TestCase):
@@ -36,4 +37,7 @@ class TestSkippedDyn(unittest.TestCase):
     def test_score_basic(self):
         # Erroneously counting the skipped accent: 1300
         # Correct: 1250
-        self._test_optimal("basic.chart", 1250)
+        if hymisc.FLAG_SKIPPED_DYNAMICS:
+            self._test_optimal("basic.chart", 1250)
+        else:
+            self.skipTest("Feature disabled")

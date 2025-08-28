@@ -15,6 +15,10 @@ will not be supported and the app will just ask the user to re-analyze them.
 HYDRA_VERSION = (1,2,0)
 
 
+"""Feature flags"""
+FLAG_SKIPPED_DYNAMICS = False
+
+
 """Static paths and files"""
 
 if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
