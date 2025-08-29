@@ -3,21 +3,25 @@ Score optimizer / path viewer for Clone Hero drums!
  
 Featuring a song browsing UI to make information convenient to access even for large song libraries.
 
+<br><p align="center"><img src="/resource/icon_app.png" width="200"></p>
+
+## Essential Info
+
+* [Path Notation Quick Reference](https://github.com/DragonDelgar/hydra/wiki/Path-Notation-Quick-Reference)
+* [Optimal Checklist](https://github.com/DragonDelgar/hydra/wiki/Optimal-Checklist)
+* Hydra User Guide (coming soon)
+
 ## Quick-start guide
 
 1. Download the [latest release](https://github.com/DragonDelgar/hydra/releases).
 2. Extract the Hydra folder to any location and run Hydra.exe.
-3. Click **Select folder...** and then pick your Clone Hero songs folder (or whichever folder contains the songs you want to browse).
-4. Click **Scan charts**.
-5. Once it's done, songs should appear in a table. Search for or find the page of the song you want to get the path for, then click the song.
-6. Click the big  **Analyze paths!** button.
-7. Once it's done, paths should appear on the left side. The first path is optimal. There may be other paths tied for optimal, listed under the same score. Below that there  may be some additional paths on slightly lower scores, which could come in handy if the optimal path is unusually difficult.
+3. Click `Add folder...` and then pick your Clone Hero songs folder (or whichever folder contains the songs you want to add).
+4. Click `Scan charts`.
+5. Once it's done, songs should appear in a table. Search for or find the page of the song you want to get the path for, then click on the song.
+6. Click the `Analyze paths!` button.
+7. Once it's done, paths should appear. The first path is optimal. There may be other paths tied for optimal, listed under the same score. Below that are some of the next-highest scores and their paths, which could come in handy if the optimal path is too annoying or difficult.
 8. Click a path on the left side to show its details on the right side.
 9. You can return to browsing songs by X-ing out of the Song Details window.
-
-[There is also a more detailed user guide.](https://github.com/DragonDelgar/hydra/blob/main/docs/UserGuide.md)
-
-<p align="center"><img src="/resource/icon_app.png" width="200"></p>
 
 ## Path notation guide
 
