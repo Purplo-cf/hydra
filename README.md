@@ -9,7 +9,7 @@ Featuring a song browsing UI to make information convenient to access even for l
 
 * [Path Notation Quick Reference](https://github.com/DragonDelgar/hydra/wiki/Path-Notation-Quick-Reference)
 * [Optimal Checklist](https://github.com/DragonDelgar/hydra/wiki/Optimal-Checklist)
-* Hydra User Guide (coming soon)
+* [Hydra User Guide](https://github.com/DragonDelgar/hydra/wiki/Hydra-User-Guide)
 
 Hungry for more info? Check out [the wiki](https://github.com/DragonDelgar/hydra/wiki).
 
