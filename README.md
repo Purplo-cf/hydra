@@ -11,6 +11,8 @@ Featuring a song browsing UI to make information convenient to access even for l
 * [Optimal Checklist](https://github.com/DragonDelgar/hydra/wiki/Optimal-Checklist)
 * Hydra User Guide (coming soon)
 
+Hungry for more info? Check out [the wiki](https://github.com/DragonDelgar/hydra/wiki).
+
 ## Quick-start guide
 
 1. Download the [latest release](https://github.com/DragonDelgar/hydra/releases).
